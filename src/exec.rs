@@ -1,4 +1,4 @@
-pub use crate::{err::*, flags::*, tre, Regex};
+use crate::{err::*, flags::*, tre, Regex};
 
 pub type RegMatchStr<'a> = Vec<Option<Result<&'a str>>>;
 pub type RegMatchBytes<'a> = Vec<Option<&'a [u8]>>;
