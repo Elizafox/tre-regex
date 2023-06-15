@@ -2,7 +2,7 @@ tre-regex
 ---------
 Safe API bindings to the [TRE regex engine](https://laurikari.net/tre).
 
-Documentation is available at [docs.rs](https://docs.rs/tre-regex/latest/tre-regex/).
+Documentation is available at [docs.rs](https://docs.rs/crate/tre-regex-sys/latest).
 
 Should work on Rust 1.65.0 and up. Please report it if you discover otherwise.
 
