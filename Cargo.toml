@@ -1,0 +1,21 @@
+[package]
+name = "tre-regex"
+version = "0.1.0"
+edition = "2021"
+description = "Rust safe bindings to the TRE regex module"
+readme = "README.md"
+repository = "https://github.com/Elizafox/tre-regex"
+license = "BSD-2-Clause"
+rust-version = "1.65.0"
+authors = ["Elizabeth Myers"]
+categories = ["api-bindings", "text-processing"]
+keywords = ["regex", "tre", "api", "safe-bindings"]
+
+[dependencies]
+tre-regex-sys = "0.3.0"
+
+[features]
+default = ["vendored", "approx"]
+vendored = ["tre-regex-sys/vendored"]
+wchar = ["tre-regex-sys/wchar"]
+approx = ["tre-regex-sys/approx"]
