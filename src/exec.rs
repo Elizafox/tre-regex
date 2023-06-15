@@ -11,7 +11,7 @@ impl Regex {
     /// # Arguments
     /// * `string`: string to match against `compiled_reg`
     /// * `nmatches`: number of matches to return
-    /// * `flags`: flags to pass to [`tre_regnexec`](tre_regex_sys::tre_regnexec).
+    /// * `flags`: [`RegexecFlags`] to pass to [`tre_regnexec`](tre_regex_sys::tre_regnexec).
     ///
     /// # Returns
     /// If no error was found, a [`Vec`] of [`Option`]s will be returned.
@@ -57,6 +57,8 @@ impl Regex {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// [`RegexError`]: crate::RegexError
     #[inline]
     pub fn regexec<'a>(
         &self,
@@ -90,7 +92,7 @@ impl Regex {
     /// # Arguments
     /// * `data`: [`u8`] slice to match against `compiled_reg`
     /// * `nmatches`: number of matches to return
-    /// * `flags`: flags to pass to [`tre_regnexec`](tre_regex_sys::tre_regnexec).
+    /// * `flags`: [`RegexecFlags`] to pass to [`tre_regnexec`](tre_regex_sys::tre_regnexec).
     ///
     /// # Returns
     /// If no error was found, a [`Vec`] of [`Option`]s will be returned.
@@ -193,7 +195,7 @@ impl Regex {
 /// * `compiled_reg`: the compiled [`Regex`] object.
 /// * `string`: string to match against `compiled_reg`
 /// * `nmatches`: number of matches to return
-/// * `flags`: flags to pass to [`tre_regnexec`](tre_regex_sys::tre_regnexec).
+/// * `flags`: [`RegexecFlags`] to pass to [`tre_regnexec`](tre_regex_sys::tre_regnexec).
 ///
 /// # Returns
 /// If no error was found, a [`Vec`] of [`Option`]s will be returned.
@@ -265,7 +267,7 @@ pub fn regexec<'a>(
 /// * `compiled_reg`: the compiled [`Regex`] object.
 /// * `data`: [`u8`] slice to match against `compiled_reg`
 /// * `nmatches`: number of matches to return
-/// * `flags`: flags to pass to [`tre_regnexec`](tre_regex_sys::tre_regnexec).
+/// * `flags`: [`RegexecFlags`] to pass to [`tre_regnexec`](tre_regex_sys::tre_regnexec).
 ///
 /// # Returns
 /// If no error was found, a [`Vec`] of [`Option`]s will be returned.

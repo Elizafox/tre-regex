@@ -5,7 +5,7 @@ use crate::tre;
 #[allow(clippy::module_name_repetitions)]
 pub type RegFlags = c_int;
 
-/// Flags to pass to [`regcomp`].
+/// Flags to pass to [`regcomp`](crate::regcomp).
 #[allow(clippy::module_name_repetitions)]
 #[derive(Clone, Copy, Debug)]
 pub struct RegcompFlags(RegFlags);
@@ -72,7 +72,7 @@ impl RegcompFlags {
     }
 }
 
-/// Flags to pass to [`regexec`].
+/// Flags to pass to [`regexec`](crate::regexec).
 #[allow(clippy::module_name_repetitions)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct RegexecFlags(RegFlags);

@@ -12,7 +12,7 @@ impl Regex {
     ///
     /// # Arguments
     /// * `reg`: regular expression to compile, as a string.
-    /// * `flags`: flags to pass to the function.
+    /// * `flags`: [`RegcompFlags`] to pass to the function.
     ///
     /// # Returns
     /// An opaque [`Regex`] object will be returned. It will be freed automatically when dropped.
@@ -46,6 +46,8 @@ impl Regex {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// [`RegexError`]: crate::RegexError
     pub fn new(reg: &str, flags: RegcompFlags) -> Result<Self> {
         Self::new_bytes(reg.as_bytes(), flags)
     }
@@ -54,7 +56,7 @@ impl Regex {
     ///
     /// # Arguments
     /// * `reg`: regular expression to compile, as a string.
-    /// * `flags`: flags to pass to the function.
+    /// * `flags`: [`RegcompFlags`] to pass to the function.
     ///
     /// # Returns
     /// An opaque [`Regex`] object will be returned. It will be freed automatically when dropped.
@@ -88,6 +90,8 @@ impl Regex {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// [`RegexError`]: crate::RegexError
     pub fn new_bytes(reg: &[u8], flags: RegcompFlags) -> Result<Self> {
         let mut unwrapped_compiled_reg = mem::MaybeUninit::<tre::regex_t>::uninit();
 
@@ -119,7 +123,7 @@ impl Regex {
 ///
 /// # Arguments
 /// * `reg`: regular expression to compile, as a string.
-/// * `flags`: flags to pass to the function.
+/// * `flags`: [`RegcompFlags`] to pass to the function.
 ///
 /// # Returns
 /// An opaque [`Regex`] object will be returned.
@@ -151,6 +155,9 @@ impl Regex {
 /// # Ok(())
 /// # }
 /// ```
+///
+/// [`RegcompFlags`]: crate::RegcompFlags
+/// [`RegexError`]: crate::RegexError
 #[inline]
 pub fn regcomp(reg: &str, flags: RegcompFlags) -> Result<Regex> {
     Regex::new(reg, flags)
@@ -162,7 +169,7 @@ pub fn regcomp(reg: &str, flags: RegcompFlags) -> Result<Regex> {
 ///
 /// # Arguments
 /// * `reg`: regular expression to compile, as a string.
-/// * `flags`: flags to pass to the function.
+/// * `flags`: [`RegcompFlags`] to pass to the function.
 ///
 /// # Returns
 /// An opaque [`Regex`] object will be returned.
@@ -191,6 +198,9 @@ pub fn regcomp(reg: &str, flags: RegcompFlags) -> Result<Regex> {
 /// # Ok(())
 /// # }
 /// ```
+///
+/// [`RegcompFlags`]: crate::RegcompFlags
+/// [`RegexError`]: crate::RegexError
 #[inline]
 pub fn regcomp_bytes(reg: &[u8], flags: RegcompFlags) -> Result<Regex> {
     Regex::new_bytes(reg, flags)

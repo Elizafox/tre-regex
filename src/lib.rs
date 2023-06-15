@@ -118,6 +118,8 @@ impl Regex {
     /// # Safety
     /// The `regex` parameter must have been initalised by [`tre_regcomp`](tre_regex_sys::tre_regcomp)
     /// or taken from another [`Regex`] object.
+    ///
+    /// [`regcomp`]: crate::regcomp
     #[must_use]
     #[inline]
     pub const unsafe fn new_from(regex: tre::regex_t) -> Self {
