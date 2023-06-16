@@ -16,7 +16,7 @@ tre-regex-sys = "0.3.0"
 widestring = {version = "1.0.2", optional = true}
 
 [features]
-default = ["vendored", "approx"]
+default = ["vendored", "approx", "wchar"]
 vendored = ["tre-regex-sys/vendored"]
 wchar = ["tre-regex-sys/wchar", "dep:widestring"]
 approx = ["tre-regex-sys/approx"]
