@@ -1,8 +1,8 @@
 //! These are safe bindings to the [`tre_regex_sys`] module.
 //!
 //! These bindings are designed to provide an idiomatic Rust-like API to the [TRE library] as much
-//! as possible. Most of the TRE API is suported, except the `wchar_t` functionality (as `wchar_t`
-//! is technically standard, but is 16-bit on Windows and 32-bit almost everywhere else).
+//! as possible. Most of the TRE API is suported, except [`reguexec`] from TRE; that is tricky to
+//! implement, although should be fairly simple to use yourself.
 //!
 //! # Examples
 //! Two API's are presented: the function API, and the object API. Whichever one you choose to use
@@ -63,6 +63,7 @@
 //! ```
 //!
 //! [TRE library]: <https://laurikari.net/tre/>
+//! [`reguexec`]: tre_regex_sys::tre_reguexec
 
 #![deny(clippy::all)]
 #![warn(clippy::pedantic)]
@@ -79,6 +80,8 @@ mod exec;
 mod flags;
 #[cfg(test)]
 mod tests;
+#[cfg(feature = "wchar")]
+mod wchar;
 
 #[cfg(feature = "approx")]
 pub use crate::approx::*;
@@ -86,6 +89,8 @@ pub use crate::comp::*;
 pub use crate::err::*;
 pub use crate::exec::*;
 pub use crate::flags::*;
+#[cfg(feature = "wchar")]
+pub use crate::wchar::*;
 
 /// The base regex object.
 ///

@@ -130,7 +130,7 @@ pub struct RegApproxMatch<Data, Res> {
 }
 
 impl<Data, Res> RegApproxMatch<Data, Res> {
-    fn new(data: Data, matches: Vec<Option<Res>>, amatch: tre::regamatch_t) -> Self {
+    pub(crate) fn new(data: Data, matches: Vec<Option<Res>>, amatch: tre::regamatch_t) -> Self {
         Self {
             data,
             matches,
@@ -260,7 +260,7 @@ impl Regex {
             })));
         }
 
-        Ok(RegApproxMatch::new(
+        Ok(RegApproxMatchStr::new(
             string,
             result,
             *match_results.get_regamatch(),
@@ -385,7 +385,7 @@ impl Regex {
             result.push(Some(&data[start_offset..end_offset]));
         }
 
-        Ok(RegApproxMatch::new(data, result, amatch))
+        Ok(RegApproxMatchBytes::new(data, result, amatch))
     }
 }
 
