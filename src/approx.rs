@@ -1,12 +1,14 @@
+use std::borrow::Cow;
 use std::ffi::c_int;
+use std::hint::unreachable_unchecked;
 
 use crate::{
     err::{BindingErrorCode, ErrorKind, RegexError, Result},
     tre, Regex, RegexecFlags,
 };
 
-pub type RegApproxMatchStr<'a> = RegApproxMatch<&'a str, Result<&'a str>>;
-pub type RegApproxMatchBytes<'a> = RegApproxMatch<&'a [u8], &'a [u8]>;
+pub type RegApproxMatchStr<'a> = RegApproxMatch<&'a str, Result<Cow<'a, str>>>;
+pub type RegApproxMatchBytes<'a> = RegApproxMatch<&'a [u8], Cow<'a, [u8]>>;
 
 /// Regex params passed to approximate matching functions such as [`regaexec`]
 #[cfg(feature = "approx")]
@@ -248,16 +250,21 @@ impl Regex {
         let data = string.as_bytes();
         let match_results = self.regaexec_bytes(data, params, nmatches, flags)?;
 
-        let mut result: Vec<Option<Result<&'a str>>> = Vec::with_capacity(nmatches);
+        let mut result: Vec<Option<Result<Cow<'a, str>>>> = Vec::with_capacity(nmatches);
         for pmatch in match_results.get_matches() {
             let Some(pmatch) = pmatch else { result.push(None); continue; };
 
-            result.push(Some(std::str::from_utf8(pmatch).map_err(|e| {
-                RegexError::new(
-                    ErrorKind::Binding(BindingErrorCode::ENCODING),
-                    &format!("UTF-8 encoding error: {e}"),
-                )
-            })));
+            result.push(Some(match pmatch {
+                Cow::Borrowed(pmatch) => match std::str::from_utf8(pmatch) {
+                    Ok(s) => Ok(s.into()),
+                    Err(e) => Err(RegexError::new(
+                        ErrorKind::Binding(BindingErrorCode::ENCODING),
+                        &format!("UTF-8 encoding error: {e}"),
+                    )),
+                },
+                // SAFETY: cannot get here, we only have borrowed values.
+                _ => unsafe { unreachable_unchecked() },
+            }));
         }
 
         Ok(RegApproxMatchStr::new(
@@ -369,7 +376,7 @@ impl Regex {
             return Err(self.regerror(result));
         }
 
-        let mut result: Vec<Option<&'a [u8]>> = Vec::with_capacity(nmatches);
+        let mut result: Vec<Option<Cow<'a, [u8]>>> = Vec::with_capacity(nmatches);
         for pmatch in match_vec {
             if pmatch.rm_so < 0 || pmatch.rm_eo < 0 {
                 result.push(None);
@@ -382,7 +389,7 @@ impl Regex {
             #[allow(clippy::cast_sign_loss)]
             let end_offset = pmatch.rm_eo as usize;
 
-            result.push(Some(&data[start_offset..end_offset]));
+            result.push(Some(Cow::Borrowed(&data[start_offset..end_offset])));
         }
 
         Ok(RegApproxMatchBytes::new(data, result, amatch))
