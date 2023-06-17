@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::hint::unreachable_unchecked;
 
 use crate::{err::*, flags::*, tre, Regex};
 
@@ -75,24 +76,17 @@ impl Regex {
         for pmatch in match_results {
             let Some(pmatch) = pmatch else { result.push(None); continue; };
 
-            result.push(
-                Some(
-                    match pmatch {
-                        Cow::Borrowed(bytes) => {
-                            match std::str::from_utf8(bytes) {
-                                Ok(s) => Ok(s.into()),
-                                Err(e) => Err(RegexError::new(ErrorKind::Binding(BindingErrorCode::ENCODING), &format!("UTF-8 encoding error: {e}")))
-                            }
-                        }
-                        Cow::Owned(bytes) => {
-                            match String::from_utf8(bytes) {
-                                Ok(s) => Ok(s.into()),
-                                Err(e) => Err(RegexError::new(ErrorKind::Binding(BindingErrorCode::ENCODING), &format!("UTF-8 encoding error: {e}")))
-                            }
-                        }
-                    }
-                )
-            );
+            result.push(Some(match pmatch {
+                Cow::Borrowed(pmatch) => match std::str::from_utf8(pmatch) {
+                    Ok(s) => Ok(s.into()),
+                    Err(e) => Err(RegexError::new(
+                        ErrorKind::Binding(BindingErrorCode::ENCODING),
+                        &format!("UTF-8 encoding error: {e}"),
+                    )),
+                },
+                // SAFETY: cannot get here, we only have borrowed values.
+                _ => unsafe { unreachable_unchecked() }
+            }));
         }
 
         Ok(result)
