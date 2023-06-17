@@ -4,6 +4,8 @@
 //! as possible. Most of the TRE API is suported, except [`reguexec`] from TRE; that is tricky to
 //! implement, although should be fairly simple to use yourself.
 //!
+//! This library uses Rust [`std::borrow::Cow`] strings to enable zero-copy of regex matches.
+//!
 //! # Examples
 //! Two API's are presented: the function API, and the object API. Whichever one you choose to use
 //! is up to you, although the function API is implemented as a thin wrapper around the object API.
@@ -17,7 +19,7 @@
 //! let regcomp_flags = RegcompFlags::new().add(RegcompFlags::EXTENDED);
 //! let regexec_flags = RegexecFlags::new().add(RegexecFlags::NONE);
 //!
-//! let compiled_reg = Regex::new("(([[:alpha:]]+).*)*", regcomp_flags)?;
+//! let compiled_reg = Regex::new("^([[:alnum:]]+)[[:space:]]*([[:alnum:]]+)$", regcomp_flags)?;
 //! let matches = compiled_reg.regexec("hello world", 2, regexec_flags)?;
 //!
 //! for (i, matched) in matches.into_iter().enumerate() {
@@ -44,7 +46,7 @@
 //! let regcomp_flags = RegcompFlags::new().add(RegcompFlags::EXTENDED);
 //! let regexec_flags = RegexecFlags::new().add(RegexecFlags::NONE);
 //!
-//! let compiled_reg = regcomp("(([[:alpha:]]+).*)*", regcomp_flags)?;
+//! let compiled_reg = regcomp("^([[:alnum:]]+)[[:space:]]*([[:alnum:]]+)$", regcomp_flags)?;
 //! let matches = regexec(&compiled_reg, "hello world", 2, regexec_flags)?;
 //!
 //! for (i, matched) in matches.into_iter().enumerate() {
