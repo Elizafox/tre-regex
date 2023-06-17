@@ -1,8 +1,10 @@
-use crate::{err::*, flags::*, tre, Regex};
+use std::borrow::Cow;
 
 use widestring::WideStr;
 
-pub type RegMatchWideStr<'a> = Vec<Option<&'a WideStr>>;
+use crate::{err::*, flags::*, tre, Regex};
+
+pub type RegMatchWideStr<'a> = Vec<Option<Cow<'a, WideStr>>>;
 
 impl Regex {
     /// Performs a regex search on the passed wide string, returning `nmatches` results.
@@ -86,7 +88,7 @@ impl Regex {
             return Err(self.regerror(result));
         }
 
-        let mut result: Vec<Option<&'a WideStr>> = Vec::with_capacity(nmatches);
+        let mut result: Vec<Option<Cow<'a, WideStr>>> = Vec::with_capacity(nmatches);
         for pmatch in match_vec {
             if pmatch.rm_so < 0 || pmatch.rm_eo < 0 {
                 result.push(None);
@@ -99,7 +101,7 @@ impl Regex {
             #[allow(clippy::cast_sign_loss)]
             let end_offset = pmatch.rm_eo as usize;
 
-            result.push(Some(&string[start_offset..end_offset]));
+            result.push(Some(Cow::Borrowed(&string[start_offset..end_offset])));
         }
 
         Ok(result)
