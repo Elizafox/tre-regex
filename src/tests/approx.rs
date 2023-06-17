@@ -74,13 +74,13 @@ fn test_regaexec_bytes() {
 
     let matched_0 = matched[0].as_ref();
     assert!(matched_0.is_some());
-    assert_eq!(matched_0.unwrap(), b"hullo warld");
+    assert_eq!(matched_0.unwrap().as_ref(), b"hullo warld");
 
     let matched_1 = matched[1].as_ref();
     assert!(matched_1.is_some());
-    assert_eq!(matched_1.unwrap(), b"hullo");
+    assert_eq!(matched_1.unwrap().as_ref(), b"hullo");
 
     let matched_2 = matched[2].as_ref();
     assert!(matched_2.is_some());
-    assert_eq!(matched_2.unwrap(), b"warld");
+    assert_eq!(matched_2.unwrap().as_ref(), b"warld");
 }
