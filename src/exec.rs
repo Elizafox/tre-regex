@@ -85,7 +85,7 @@ impl Regex {
                     )),
                 },
                 // SAFETY: cannot get here, we only have borrowed values.
-                _ => unsafe { unreachable_unchecked() }
+                _ => unsafe { unreachable_unchecked() },
             }));
         }
 
