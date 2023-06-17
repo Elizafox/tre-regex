@@ -1,7 +1,9 @@
+use std::borrow::Cow;
+
 use crate::{err::*, flags::*, tre, Regex};
 
-pub type RegMatchStr<'a> = Vec<Option<Result<&'a str>>>;
-pub type RegMatchBytes<'a> = Vec<Option<&'a [u8]>>;
+pub type RegMatchStr<'a> = Vec<Option<Result<Cow<'a, str>>>>;
+pub type RegMatchBytes<'a> = Vec<Option<Cow<'a, [u8]>>>;
 
 impl Regex {
     /// Performs a regex search on the passed string, returning `nmatches` results.
@@ -69,16 +71,28 @@ impl Regex {
         let data = string.as_bytes();
         let match_results = self.regexec_bytes(data, nmatches, flags)?;
 
-        let mut result: Vec<Option<Result<&'a str>>> = Vec::with_capacity(nmatches);
+        let mut result: Vec<Option<Result<Cow<'a, str>>>> = Vec::with_capacity(nmatches);
         for pmatch in match_results {
             let Some(pmatch) = pmatch else { result.push(None); continue; };
 
-            result.push(Some(std::str::from_utf8(pmatch).map_err(|e| {
-                RegexError::new(
-                    ErrorKind::Binding(BindingErrorCode::ENCODING),
-                    &format!("UTF-8 encoding error: {e}"),
+            result.push(
+                Some(
+                    match pmatch {
+                        Cow::Borrowed(bytes) => {
+                            match std::str::from_utf8(bytes) {
+                                Ok(s) => Ok(s.into()),
+                                Err(e) => Err(RegexError::new(ErrorKind::Binding(BindingErrorCode::ENCODING), &format!("UTF-8 encoding error: {e}")))
+                            }
+                        }
+                        Cow::Owned(bytes) => {
+                            match String::from_utf8(bytes) {
+                                Ok(s) => Ok(s.into()),
+                                Err(e) => Err(RegexError::new(ErrorKind::Binding(BindingErrorCode::ENCODING), &format!("UTF-8 encoding error: {e}")))
+                            }
+                        }
+                    }
                 )
-            })));
+            );
         }
 
         Ok(result)
@@ -125,7 +139,7 @@ impl Regex {
     ///     match matched {
     ///         Some(substr) => println!(
     ///             "Match {i}: {}",
-    ///             std::str::from_utf8(substr).unwrap()
+    ///             std::str::from_utf8(substr.as_ref()).unwrap()
     ///         ),
     ///         None => println!("Match {i}: <None>"),
     ///     }
@@ -165,7 +179,7 @@ impl Regex {
             return Err(self.regerror(result));
         }
 
-        let mut result: Vec<Option<&'a [u8]>> = Vec::with_capacity(nmatches);
+        let mut result: Vec<Option<Cow<'a, [u8]>>> = Vec::with_capacity(nmatches);
         for pmatch in match_vec {
             if pmatch.rm_so < 0 || pmatch.rm_eo < 0 {
                 result.push(None);
@@ -178,7 +192,7 @@ impl Regex {
             #[allow(clippy::cast_sign_loss)]
             let end_offset = pmatch.rm_eo as usize;
 
-            result.push(Some(&data[start_offset..end_offset]));
+            result.push(Some(Cow::Borrowed(&data[start_offset..end_offset])));
         }
 
         Ok(result)
@@ -306,7 +320,7 @@ pub fn regexec<'a>(
 ///     match matched {
 ///         Some(substr) => println!(
 ///             "Match {i}: {}",
-///             std::str::from_utf8(substr).unwrap()
+///             std::str::from_utf8(substr.as_ref()).unwrap()
 ///         ),
 ///         None => println!("Match {i}: <None>"),
 ///     }

@@ -190,7 +190,7 @@ pub fn regcomp(reg: &str, flags: RegcompFlags) -> Result<Regex> {
 /// for (i, matched) in matches.into_iter().enumerate() {
 ///     match matched {
 ///         Some(substr) => println!("Match {i}: '{}'",
-///             std::str::from_utf8(substr).unwrap()
+///             std::str::from_utf8(substr.as_ref()).unwrap()
 ///         ),
 ///         None => println!("Match {i}: <None>"),
 ///     }

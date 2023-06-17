@@ -34,7 +34,7 @@ fn regexec_bytes_works() {
     let Ok(compiled_reg) = regcomp("[A-Za-z0-9]*", regcomp_flags) else { panic!("regcomp"); };
     let Ok(result) = regexec_bytes(&compiled_reg, b"hello", 2, regexec_flags) else { panic!("regexec_bytes"); };
     assert!(result[0].is_some());
-    assert_eq!(result[0].as_ref().unwrap(), b"hello");
+    assert_eq!(result[0].as_ref().unwrap().as_ref(), b"hello");
     assert!(result[1].as_ref().is_none());
 }
 
