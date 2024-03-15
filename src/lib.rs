@@ -173,7 +173,9 @@ impl Drop for Regex {
     /// [`regex_t`](tre_regex_sys::regex_t).
     #[inline]
     fn drop(&mut self) {
-        let Some(compiled_reg) = self.get_mut() else { return; };
+        let Some(compiled_reg) = self.get_mut() else {
+            return;
+        };
 
         // SAFETY: freeing data passed into the struct previously.
         // If the data came from our API, this is safe. Otherwise, the user must opt into storing

@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use widestring::WideStr;
 
-use crate::{err::*, flags::*, tre, Regex};
+use crate::{err::{BindingErrorCode, ErrorKind, RegexError, Result}, flags::RegexecFlags, tre, Regex};
 
 pub type RegMatchWideStr<'a> = Vec<Option<Cow<'a, WideStr>>>;
 
@@ -65,7 +65,7 @@ impl Regex {
         let Some(compiled_reg_obj) = self.get() else {
             return Err(RegexError::new(
                 ErrorKind::Binding(BindingErrorCode::REGEX_VACANT),
-                "Attempted to unwrap a vacant Regex object"
+                "Attempted to unwrap a vacant Regex object",
             ));
         };
         let mut match_vec: Vec<tre::regmatch_t> =
@@ -77,7 +77,7 @@ impl Regex {
         let result = unsafe {
             tre::tre_regwnexec(
                 compiled_reg_obj,
-                string.as_ptr() as *const _,
+                string.as_ptr().cast(),
                 string.len(),
                 nmatches,
                 match_vec.as_mut_ptr(),

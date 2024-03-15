@@ -54,7 +54,7 @@ impl Regex {
         let result = unsafe {
             tre::tre_regwncomp(
                 unwrapped_compiled_reg.as_mut_ptr(),
-                reg.as_ptr() as *const _,
+                reg.as_ptr().cast(),
                 reg.len(),
                 flags.get(),
             )

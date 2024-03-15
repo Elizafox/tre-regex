@@ -81,7 +81,7 @@ impl Regex {
         let Some(compiled_reg_obj) = self.get() else {
             return RegexError::new(
                 ErrorKind::Binding(BindingErrorCode::REGEX_VACANT),
-                "Attempted to unwrap a vacant Regex object"
+                "Attempted to unwrap a vacant Regex object",
             );
         };
         let bufsize = unsafe { tre::tre_regerror(result, compiled_reg_obj, null_mut(), 0) };
@@ -101,14 +101,18 @@ impl Regex {
                 &format!("Could not convert error buffer to C string: {e}"),
             )
         });
-        let Ok(errstr) = errstr else { return errstr.unwrap_err(); };
+        let Ok(errstr) = errstr else {
+            return errstr.unwrap_err();
+        };
         let errstr = errstr.to_str().map_err(|e| {
             RegexError::new(
                 ErrorKind::Binding(BindingErrorCode::ENCODING),
                 &format!("Could not encode error string to UTF-8: {e}"),
             )
         });
-        let Ok(errstr) = errstr else { return errstr.unwrap_err(); };
+        let Ok(errstr) = errstr else {
+            return errstr.unwrap_err();
+        };
 
         // Value cannot ever be negative.
         #[allow(clippy::cast_sign_loss)]

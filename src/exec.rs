@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::hint::unreachable_unchecked;
 
-use crate::{err::*, flags::*, tre, Regex};
+use crate::{err::{BindingErrorCode, ErrorKind, RegexError, Result}, flags::RegexecFlags, tre, Regex};
 
 pub type RegMatchStr<'a> = Vec<Option<Result<Cow<'a, str>>>>;
 pub type RegMatchBytes<'a> = Vec<Option<Cow<'a, [u8]>>>;
@@ -74,8 +74,12 @@ impl Regex {
 
         let mut result: Vec<Option<Result<Cow<'a, str>>>> = Vec::with_capacity(nmatches);
         for pmatch in match_results {
-            let Some(pmatch) = pmatch else { result.push(None); continue; };
+            let Some(pmatch) = pmatch else {
+                result.push(None);
+                continue;
+            };
 
+            #[allow(clippy::match_wildcard_for_single_variants)]
             result.push(Some(match pmatch {
                 Cow::Borrowed(pmatch) => match std::str::from_utf8(pmatch) {
                     Ok(s) => Ok(s.into()),
@@ -150,7 +154,7 @@ impl Regex {
         let Some(compiled_reg_obj) = self.get() else {
             return Err(RegexError::new(
                 ErrorKind::Binding(BindingErrorCode::REGEX_VACANT),
-                "Attempted to unwrap a vacant Regex object"
+                "Attempted to unwrap a vacant Regex object",
             ));
         };
         let mut match_vec: Vec<tre::regmatch_t> =
