@@ -4,7 +4,7 @@ Safe API bindings to the [TRE regex engine](https://laurikari.net/tre).
 
 Documentation is available at [docs.rs](https://docs.rs/crate/tre-regex/latest).
 
-Should work on Rust 1.70.0 and up. Please report it if you discover otherwise.
+Should work on Rust 1.74.0 and up. Please report it if you discover otherwise.
 
 Features
 ========
