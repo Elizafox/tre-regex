@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BSD-2-Clause
+// See LICENSE file in the project root for full license text.
+
 use crate::{regcomp, tre, ErrorKind, RegcompFlags, RegexecFlags};
 
 #[test]

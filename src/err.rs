@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BSD-2-Clause
+// See LICENSE file in the project root for full license text.
+
 use std::ffi::{c_char, c_int, c_uint, CString};
 use std::fmt;
 use std::ptr::null_mut;

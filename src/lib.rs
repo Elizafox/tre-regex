@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BSD-2-Clause
+// See LICENSE file in the project root for full license text.
+
 //! These are safe bindings to the [`tre_regex_sys`] module.
 //!
 //! These bindings are designed to provide an idiomatic Rust-like API to the [TRE library] as much
