@@ -6,9 +6,10 @@ use std::mem;
 use widestring::WideStr;
 
 use crate::{
-    err::{regerror, Result},
+    Regex,
+    err::{Result, regerror},
     flags::RegcompFlags,
-    tre, Regex,
+    tre,
 };
 
 impl Regex {
@@ -53,7 +54,6 @@ impl Regex {
 
         // SAFETY: unwrapped_compiled_reg is being initalised. reg is immutably passed and is not
         // modified by the caller. Wrapping is also impossible.
-        #[allow(clippy::cast_possible_wrap)]
         let result = unsafe {
             tre::tre_regwncomp(
                 unwrapped_compiled_reg.as_mut_ptr(),

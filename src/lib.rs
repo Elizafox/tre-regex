@@ -71,8 +71,28 @@
 //! [`reguexec`]: tre_regex_sys::tre_reguexec
 
 #![deny(clippy::all)]
+#![deny(unsafe_op_in_unsafe_fn)]
+#![warn(
+    missing_debug_implementations,
+    rust_2018_idioms,
+    rustdoc::all,
+    unused_lifetimes,
+    unused_qualifications
+)]
+#![warn(clippy::cargo)]
 #![warn(clippy::pedantic)]
 #![warn(clippy::nursery)]
+#![warn(
+    clippy::as_pointer_underscore,
+    clippy::dbg_macro,
+    clippy::mem_forget,
+    clippy::rest_pat_in_fully_bound_structs,
+    clippy::todo,
+    clippy::undocumented_unsafe_blocks,
+    clippy::unimplemented
+)]
+// bindgen and autotools currently depend on different major versions of shlex.
+#![allow(clippy::multiple_crate_versions)]
 
 /// Public re-export of the [`tre_regex_sys`] module.
 pub use tre_regex_sys as tre;
@@ -141,14 +161,15 @@ impl Regex {
     /// This is an advanced function and should not be used unless you know what you are doing.
     ///
     /// # Returns
-    /// `None` if the object is vacant, otherwise `Some(`[`regex_t`](tre_regex_sys::regex_t)`)`.
+    /// `None` if the object is vacant, otherwise
+    /// <code>Some([regex_t](tre_regex_sys::regex_t))</code>.
     ///
     /// # Safety
     /// A leak could result if the object is not properly freed with
     /// [`tre_regfree`](tre_regex_sys::tre_regfree) if the object was initalised by the TRE API.
     #[must_use]
     #[inline]
-    pub unsafe fn release(&mut self) -> Option<tre::regex_t> {
+    pub const unsafe fn release(&mut self) -> Option<tre::regex_t> {
         let regex = self.0;
         self.0 = None;
         regex
@@ -164,7 +185,7 @@ impl Regex {
     /// Gets a mutable reference to the underlying [`regex_t`](tre_regex_sys::regex_t) object.
     #[must_use]
     #[inline]
-    pub fn get_mut(&mut self) -> &mut Option<tre::regex_t> {
+    pub const fn get_mut(&mut self) -> &mut Option<tre::regex_t> {
         &mut self.0
     }
 }

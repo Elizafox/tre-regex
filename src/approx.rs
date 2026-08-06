@@ -3,11 +3,12 @@
 
 use std::borrow::Cow;
 use std::ffi::c_int;
-use std::hint::unreachable_unchecked;
 
 use crate::{
+    Regex, RegexecFlags,
     err::{BindingErrorCode, ErrorKind, RegexError, Result},
-    tre, Regex, RegexecFlags,
+    exec::match_offset,
+    tre,
 };
 
 pub type RegApproxMatchStr<'a> = RegApproxMatch<&'a str, Result<Cow<'a, str>>>;
@@ -108,7 +109,7 @@ impl RegApproxParams {
     /// Get a mutable reference to the underlying [`regaparams_t`](tre_regex_sys::regaparams_t) object.
     #[must_use]
     #[inline]
-    pub fn get_mut(&mut self) -> &mut tre::regaparams_t {
+    pub const fn get_mut(&mut self) -> &mut tre::regaparams_t {
         &mut self.0
     }
 }
@@ -135,7 +136,11 @@ pub struct RegApproxMatch<Data, Res> {
 }
 
 impl<Data, Res> RegApproxMatch<Data, Res> {
-    pub(crate) fn new(data: Data, matches: Vec<Option<Res>>, amatch: tre::regamatch_t) -> Self {
+    pub(crate) const fn new(
+        data: Data,
+        matches: Vec<Option<Res>>,
+        amatch: tre::regamatch_t,
+    ) -> Self {
         Self {
             data,
             matches,
@@ -250,35 +255,57 @@ impl Regex {
         nmatches: usize,
         flags: RegexecFlags,
     ) -> Result<RegApproxMatchStr<'a>> {
+        let Some(compiled_reg_obj) = self.get() else {
+            return Err(RegexError::new(
+                ErrorKind::Binding(BindingErrorCode::REGEX_VACANT),
+                "Attempted to unwrap a vacant Regex object",
+            ));
+        };
         let data = string.as_bytes();
-        let match_results = self.regaexec_bytes(data, params, nmatches, flags)?;
+        let mut match_vec = vec![tre::regmatch_t::default(); nmatches];
+        let mut amatch = tre::regamatch_t {
+            nmatch: nmatches,
+            pmatch: match_vec.as_mut_ptr(),
+            ..Default::default()
+        };
+
+        // SAFETY: the regex is initialised, data is valid for its supplied length, and amatch
+        // points to nmatches writable entries.
+        let result_code = unsafe {
+            tre::tre_reganexec(
+                compiled_reg_obj,
+                data.as_ptr().cast(),
+                data.len(),
+                &raw mut amatch,
+                *params.get(),
+                flags.get(),
+            )
+        };
+        if result_code != 0 {
+            return Err(self.regerror(result_code));
+        }
 
         let mut result: Vec<Option<Result<Cow<'a, str>>>> = Vec::with_capacity(nmatches);
-        for pmatch in match_results.get_matches() {
-            let Some(pmatch) = pmatch else {
+        for pmatch in match_vec {
+            if pmatch.rm_so < 0 || pmatch.rm_eo < 0 {
                 result.push(None);
                 continue;
-            };
+            }
 
-            #[allow(clippy::match_wildcard_for_single_variants)]
-            result.push(Some(match pmatch {
-                Cow::Borrowed(pmatch) => match std::str::from_utf8(pmatch) {
-                    Ok(s) => Ok(s.into()),
-                    Err(e) => Err(RegexError::new(
-                        ErrorKind::Binding(BindingErrorCode::ENCODING),
-                        &format!("UTF-8 encoding error: {e}"),
-                    )),
-                },
-                // SAFETY: cannot get here, we only have borrowed values.
-                _ => unsafe { unreachable_unchecked() },
+            let start_offset = match_offset(pmatch.rm_so)?;
+            let end_offset = match_offset(pmatch.rm_eo)?;
+            let pmatch = &data[start_offset..end_offset];
+
+            result.push(Some(match std::str::from_utf8(pmatch) {
+                Ok(s) => Ok(s.into()),
+                Err(e) => Err(RegexError::new(
+                    ErrorKind::Binding(BindingErrorCode::ENCODING),
+                    &format!("UTF-8 encoding error: {e}"),
+                )),
             }));
         }
 
-        Ok(RegApproxMatchStr::new(
-            string,
-            result,
-            *match_results.get_regamatch(),
-        ))
+        Ok(RegApproxMatchStr::new(string, result, amatch))
     }
 
     /// Performs an approximate regex search on the passed bytes, returning `nmatches` results.
@@ -290,7 +317,7 @@ impl Regex {
     /// * `data`: [`u8`] slice to match against `compiled_reg`
     /// * `params`: see [`RegApproxParams`]
     /// * `nmatches`: number of matches to return
-    /// * `flags`: [`RegexecFlags`] to pass to [`tre_reganexec`](tre_regex_sys::tre_reganexec).
+    /// * `flags`: [`RegexecFlags`] to pass to [`tre_regaexecb`](tre_regex_sys::tre_regaexecb).
     ///
     /// # Returns
     /// If no error was found, a [`Vec`] of [`Option`]s will be returned.
@@ -303,7 +330,8 @@ impl Regex {
     ///
     /// # Caveats
     /// Unless copied, the match results must live at least as long as `data`. This is because they are
-    /// slices into `data` under the hood, for efficiency.
+    /// slices into `data` under the hood, for efficiency. TRE's approximate byte matcher is
+    /// NUL-terminated, so an embedded NUL marks the end of the searchable data.
     ///
     /// # Examples
     /// ```
@@ -325,7 +353,7 @@ impl Regex {
     ///     .max_subst(2)
     ///     .max_err(2);
     ///
-    /// let compiled_reg = Regex::new("^(hello).*(world)$", regcomp_flags)?;
+    /// let compiled_reg = Regex::new_bytes(b"^(hello).*(world)$", regcomp_flags)?;
     /// let result = compiled_reg.regaexec_bytes(
     ///     b"hello world",     // Bytes to match against
     ///     &regaexec_params,   // Matching parameters
@@ -365,16 +393,17 @@ impl Regex {
             pmatch: match_vec.as_mut_ptr(),
             ..Default::default()
         };
+        let mut nul_terminated_data = Vec::with_capacity(data.len() + 1);
+        nul_terminated_data.extend_from_slice(data);
+        nul_terminated_data.push(0);
 
-        // SAFETY: compiled_reg is a wrapped type (see safety concerns for Regex). data is read-only.
-        // match_vec has enough room for everything. flags also cannot wrap around.
-        #[allow(clippy::cast_possible_wrap)]
+        // SAFETY: compiled_reg is initialised, nul_terminated_data has an explicit trailing NUL,
+        // and amatch points to nmatches writable entries.
         let result = unsafe {
-            tre::tre_reganexec(
+            tre::tre_regaexecb(
                 compiled_reg_obj,
-                data.as_ptr().cast::<i8>(),
-                data.len(),
-                &mut amatch,
+                nul_terminated_data.as_ptr().cast(),
+                &raw mut amatch,
                 *params.get(),
                 flags.get(),
             )
@@ -390,11 +419,8 @@ impl Regex {
                 continue;
             }
 
-            // Wraparound is impossible.
-            #[allow(clippy::cast_sign_loss)]
-            let start_offset = pmatch.rm_so as usize;
-            #[allow(clippy::cast_sign_loss)]
-            let end_offset = pmatch.rm_eo as usize;
+            let start_offset = match_offset(pmatch.rm_so)?;
+            let end_offset = match_offset(pmatch.rm_eo)?;
 
             result.push(Some(Cow::Borrowed(&data[start_offset..end_offset])));
         }
@@ -414,7 +440,7 @@ impl Regex {
 /// * `string`: string to match against `compiled_reg`
 /// * `params`: see [`RegApproxParams`]
 /// * `nmatches`: number of matches to return
-/// * `flags`: [`RegexecFlags`] to pass to [`tre_regnexec`](tre_regex_sys::tre_regnexec).
+/// * `flags`: [`RegexecFlags`] to pass to [`tre_reganexec`](tre_regex_sys::tre_reganexec).
 ///
 /// # Returns
 /// If no error was found, a [`Vec`] of [`Option`]s will be returned.
@@ -492,7 +518,7 @@ pub fn regaexec<'a>(
 /// * `data`: [`u8`] slice to match against `compiled_reg`
 /// * `params`: see [`RegApproxParams`]
 /// * `nmatches`: number of matches to return
-/// * `flags`: [`RegexecFlags`] to pass to [`tre_regnexec`](tre_regex_sys::tre_regnexec).
+/// * `flags`: [`RegexecFlags`] to pass to [`tre_regaexecb`](tre_regex_sys::tre_regaexecb).
 ///
 /// # Returns
 /// If no error was found, a [`Vec`] of [`Option`]s will be returned.
@@ -505,7 +531,8 @@ pub fn regaexec<'a>(
 ///
 /// # Caveats
 /// Unless copied, the match results must live at least as long as `data`. This is because they are
-/// slices into `data` under the hood, for efficiency.
+/// slices into `data` under the hood, for efficiency. TRE's approximate byte matcher is
+/// NUL-terminated, so an embedded NUL marks the end of the searchable data.
 ///
 /// # Examples
 /// ```
@@ -527,7 +554,7 @@ pub fn regaexec<'a>(
 ///     .max_subst(2)
 ///     .max_err(2);
 ///
-/// let compiled_reg = Regex::new("^(hello).*(world)$", regcomp_flags)?;
+/// let compiled_reg = Regex::new_bytes(b"^(hello).*(world)$", regcomp_flags)?;
 /// let result = regaexec_bytes(
 ///     &compiled_reg,      // Compiled regex
 ///     b"hello world",     // Bytes to match against

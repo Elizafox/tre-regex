@@ -75,6 +75,12 @@ impl RegcompFlags {
     }
 }
 
+impl Default for RegcompFlags {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Flags to pass to [`regexec`](crate::regexec).
 #[allow(clippy::module_name_repetitions)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -122,5 +128,11 @@ impl RegexecFlags {
     #[inline]
     pub const fn get(&self) -> RegFlags {
         self.0
+    }
+}
+
+impl Default for RegexecFlags {
+    fn default() -> Self {
+        Self::new()
     }
 }

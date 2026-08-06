@@ -2,12 +2,29 @@
 // See LICENSE file in the project root for full license text.
 
 use std::borrow::Cow;
-use std::hint::unreachable_unchecked;
 
-use crate::{err::{BindingErrorCode, ErrorKind, RegexError, Result}, flags::RegexecFlags, tre, Regex};
+use crate::{
+    Regex,
+    err::{BindingErrorCode, ErrorKind, RegexError, Result},
+    flags::RegexecFlags,
+    tre,
+};
 
 pub type RegMatchStr<'a> = Vec<Option<Result<Cow<'a, str>>>>;
 pub type RegMatchBytes<'a> = Vec<Option<Cow<'a, [u8]>>>;
+
+/// Converts a nonnegative TRE match offset into a Rust slice offset.
+///
+/// # Errors
+/// Returns a [`RegexError`] if the offset cannot be represented by [`usize`].
+pub fn match_offset(offset: tre::regoff_t) -> Result<usize> {
+    usize::try_from(offset).map_err(|error| {
+        RegexError::new(
+            ErrorKind::Binding(BindingErrorCode::INVALID_MATCH_OFFSET),
+            &format!("Invalid match offset: {error}"),
+        )
+    })
+}
 
 impl Regex {
     /// Performs a regex search on the passed string, returning `nmatches` results.
@@ -46,7 +63,7 @@ impl Regex {
     ///     .add(RegcompFlags::UNGREEDY);
     /// let regexec_flags = RegexecFlags::new().add(RegexecFlags::NONE);
     ///
-    /// let compiled_reg = Regex::new("^(hello).*(world)$", regcomp_flags)?;
+    /// let compiled_reg = Regex::new_bytes(b"^(hello).*(world)$", regcomp_flags)?;
     /// let matches = compiled_reg.regexec("hello world", 3, regexec_flags)?;
     ///
     /// for (i, matched) in matches.into_iter().enumerate() {
@@ -72,27 +89,48 @@ impl Regex {
         nmatches: usize,
         flags: RegexecFlags,
     ) -> Result<RegMatchStr<'a>> {
+        let Some(compiled_reg_obj) = self.get() else {
+            return Err(RegexError::new(
+                ErrorKind::Binding(BindingErrorCode::REGEX_VACANT),
+                "Attempted to unwrap a vacant Regex object",
+            ));
+        };
         let data = string.as_bytes();
-        let match_results = self.regexec_bytes(data, nmatches, flags)?;
+        let mut match_vec = vec![tre::regmatch_t::default(); nmatches];
+
+        // SAFETY: the regex is initialised, data is valid for its supplied length, and match_vec
+        // contains nmatches writable entries.
+        let result = unsafe {
+            tre::tre_regnexec(
+                compiled_reg_obj,
+                data.as_ptr().cast(),
+                data.len(),
+                nmatches,
+                match_vec.as_mut_ptr(),
+                flags.get(),
+            )
+        };
+        if result != 0 {
+            return Err(self.regerror(result));
+        }
 
         let mut result: Vec<Option<Result<Cow<'a, str>>>> = Vec::with_capacity(nmatches);
-        for pmatch in match_results {
-            let Some(pmatch) = pmatch else {
+        for pmatch in match_vec {
+            if pmatch.rm_so < 0 || pmatch.rm_eo < 0 {
                 result.push(None);
                 continue;
-            };
+            }
 
-            #[allow(clippy::match_wildcard_for_single_variants)]
-            result.push(Some(match pmatch {
-                Cow::Borrowed(pmatch) => match std::str::from_utf8(pmatch) {
-                    Ok(s) => Ok(s.into()),
-                    Err(e) => Err(RegexError::new(
-                        ErrorKind::Binding(BindingErrorCode::ENCODING),
-                        &format!("UTF-8 encoding error: {e}"),
-                    )),
-                },
-                // SAFETY: cannot get here, we only have borrowed values.
-                _ => unsafe { unreachable_unchecked() },
+            let start_offset = match_offset(pmatch.rm_so)?;
+            let end_offset = match_offset(pmatch.rm_eo)?;
+            let pmatch = &data[start_offset..end_offset];
+
+            result.push(Some(match std::str::from_utf8(pmatch) {
+                Ok(s) => Ok(s.into()),
+                Err(e) => Err(RegexError::new(
+                    ErrorKind::Binding(BindingErrorCode::ENCODING),
+                    &format!("UTF-8 encoding error: {e}"),
+                )),
             }));
         }
 
@@ -107,7 +145,7 @@ impl Regex {
     /// # Arguments
     /// * `data`: [`u8`] slice to match against `compiled_reg`
     /// * `nmatches`: number of matches to return
-    /// * `flags`: [`RegexecFlags`] to pass to [`tre_regnexec`](tre_regex_sys::tre_regnexec).
+    /// * `flags`: [`RegexecFlags`] to pass to [`tre_regnexecb`](tre_regex_sys::tre_regnexecb).
     ///
     /// # Returns
     /// If no error was found, a [`Vec`] of [`Option`]s will be returned.
@@ -165,11 +203,10 @@ impl Regex {
 
         // SAFETY: compiled_reg is a wrapped type (see safety concerns for Regex). data is read-only.
         // match_vec has enough room for everything. flags also cannot wrap around.
-        #[allow(clippy::cast_possible_wrap)]
         let result = unsafe {
-            tre::tre_regnexec(
+            tre::tre_regnexecb(
                 compiled_reg_obj,
-                data.as_ptr().cast::<i8>(),
+                data.as_ptr().cast::<std::ffi::c_char>(),
                 data.len(),
                 nmatches,
                 match_vec.as_mut_ptr(),
@@ -187,11 +224,8 @@ impl Regex {
                 continue;
             }
 
-            // Wraparound is impossible.
-            #[allow(clippy::cast_sign_loss)]
-            let start_offset = pmatch.rm_so as usize;
-            #[allow(clippy::cast_sign_loss)]
-            let end_offset = pmatch.rm_eo as usize;
+            let start_offset = match_offset(pmatch.rm_so)?;
+            let end_offset = match_offset(pmatch.rm_eo)?;
 
             result.push(Some(Cow::Borrowed(&data[start_offset..end_offset])));
         }
@@ -282,7 +316,7 @@ pub fn regexec<'a>(
 /// * `compiled_reg`: the compiled [`Regex`] object.
 /// * `data`: [`u8`] slice to match against `compiled_reg`
 /// * `nmatches`: number of matches to return
-/// * `flags`: [`RegexecFlags`] to pass to [`tre_regnexec`](tre_regex_sys::tre_regnexec).
+/// * `flags`: [`RegexecFlags`] to pass to [`tre_regnexecb`](tre_regex_sys::tre_regnexecb).
 ///
 /// # Returns
 /// If no error was found, a [`Vec`] of [`Option`]s will be returned.
@@ -301,7 +335,7 @@ pub fn regexec<'a>(
 /// ```
 /// # use tre_regex::Result;
 /// # fn main() -> Result<()> {
-/// use tre_regex::{RegcompFlags, RegexecFlags, regcomp, regexec_bytes};
+/// use tre_regex::{RegcompFlags, RegexecFlags, regcomp_bytes, regexec_bytes};
 ///
 /// let regcomp_flags = RegcompFlags::new()
 ///     .add(RegcompFlags::EXTENDED)
@@ -309,7 +343,7 @@ pub fn regexec<'a>(
 ///     .add(RegcompFlags::UNGREEDY);
 /// let regexec_flags = RegexecFlags::new().add(RegexecFlags::NONE);
 ///
-/// let compiled_reg = regcomp("^(hello).*(world)$", regcomp_flags)?;
+/// let compiled_reg = regcomp_bytes(b"^(hello).*(world)$", regcomp_flags)?;
 /// let matches = regexec_bytes(
 ///     &compiled_reg,  // Compiled regex
 ///     b"hello world", // Bytes to match against

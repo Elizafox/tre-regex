@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-2-Clause
 // See LICENSE file in the project root for full license text.
 
-use crate::{regcomp, tre, ErrorKind, RegcompFlags, RegexecFlags};
+use crate::{ErrorKind, RegcompFlags, RegexecFlags, regcomp, tre};
 
 #[test]
 fn regerror_works() {

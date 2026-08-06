@@ -87,3 +87,24 @@ fn test_regaexec_bytes() {
     assert!(matched_2.is_some());
     assert_eq!(matched_2.unwrap().as_ref(), b"warld");
 }
+
+#[test]
+fn regaexec_bytes_matches_non_utf8() {
+    let flags = RegcompFlags::new().add(RegcompFlags::EXTENDED);
+    let params = RegApproxParams::new()
+        .cost_ins(1)
+        .cost_del(1)
+        .cost_subst(1)
+        .max_cost(1)
+        .max_del(1)
+        .max_ins(1)
+        .max_subst(1)
+        .max_err(1);
+    let regex = Regex::new_bytes(b"\xff", flags).expect("compile non-UTF-8 pattern");
+    let result = regex
+        .regaexec_bytes(b"\xfe", &params, 1, RegexecFlags::new())
+        .expect("approximately match non-UTF-8 data");
+
+    assert_eq!(result.cost(), 1);
+    assert_eq!(result.get_matches()[0].as_deref(), Some(b"\xfe".as_slice()));
+}

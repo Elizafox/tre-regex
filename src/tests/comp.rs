@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-2-Clause
 // See LICENSE file in the project root for full license text.
 
-use crate::{regcomp, regcomp_bytes, RegcompFlags};
+use crate::{RegcompFlags, regcomp, regcomp_bytes};
 
 #[test]
 fn regcomp_flags_works() {
@@ -57,5 +57,15 @@ fn regcomp_bytes_works() {
         )
         .is_ok(),
         "regcomp"
+    );
+
+    assert!(
+        regcomp_bytes(b"a\0b", RegcompFlags::new().add(RegcompFlags::EXTENDED)).is_ok(),
+        "regcomp_bytes accepts embedded NUL bytes"
+    );
+
+    assert!(
+        regcomp_bytes(b"\xff", RegcompFlags::new().add(RegcompFlags::EXTENDED)).is_ok(),
+        "regcomp_bytes accepts non-UTF-8 bytes"
     );
 }

@@ -6,8 +6,10 @@ use std::borrow::Cow;
 use widestring::WideStr;
 
 use crate::{
+    RegApproxMatch, RegApproxParams, Regex, RegexecFlags,
     err::{BindingErrorCode, ErrorKind, RegexError, Result},
-    tre, RegApproxMatch, RegApproxParams, Regex, RegexecFlags,
+    exec::match_offset,
+    tre,
 };
 
 pub type RegApproxMatchWideStr<'a> = RegApproxMatch<&'a WideStr, Cow<'a, WideStr>>;
@@ -101,13 +103,12 @@ impl Regex {
 
         // SAFETY: compiled_reg is a wrapped type (see safety concerns for Regex). string is read-only.
         // match_vec has enough room for everything. flags also cannot wrap around.
-        #[allow(clippy::cast_possible_wrap)]
         let result = unsafe {
             tre::tre_regawnexec(
                 compiled_reg_obj,
                 string.as_ptr().cast(),
                 string.len(),
-                &mut amatch,
+                &raw mut amatch,
                 *params.get(),
                 flags.get(),
             )
@@ -123,11 +124,8 @@ impl Regex {
                 continue;
             }
 
-            // Wraparound is impossible.
-            #[allow(clippy::cast_sign_loss)]
-            let start_offset = pmatch.rm_so as usize;
-            #[allow(clippy::cast_sign_loss)]
-            let end_offset = pmatch.rm_eo as usize;
+            let start_offset = match_offset(pmatch.rm_so)?;
+            let end_offset = match_offset(pmatch.rm_eo)?;
 
             result.push(Some(Cow::Borrowed(&string[start_offset..end_offset])));
         }

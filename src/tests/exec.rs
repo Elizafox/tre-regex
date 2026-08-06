@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-2-Clause
 // See LICENSE file in the project root for full license text.
 
-use crate::{regcomp, regexec, regexec_bytes, RegcompFlags, RegexecFlags};
+use crate::{RegcompFlags, RegexecFlags, regcomp, regcomp_bytes, regexec, regexec_bytes};
 
 #[test]
 fn regexec_flags_works() {
@@ -38,7 +38,7 @@ fn regexec_works() {
 fn regexec_bytes_works() {
     let regcomp_flags = RegcompFlags::new().add(RegcompFlags::BASIC);
     let regexec_flags = RegexecFlags::new().add(RegexecFlags::NONE);
-    let Ok(compiled_reg) = regcomp("[A-Za-z0-9]*", regcomp_flags) else {
+    let Ok(compiled_reg) = regcomp_bytes(b"[A-Za-z0-9]*", regcomp_flags) else {
         panic!("regcomp");
     };
     let Ok(result) = regexec_bytes(&compiled_reg, b"hello", 2, regexec_flags) else {
@@ -47,6 +47,22 @@ fn regexec_bytes_works() {
     assert!(result[0].is_some());
     assert_eq!(result[0].as_ref().unwrap().as_ref(), b"hello");
     assert!(result[1].as_ref().is_none());
+}
+
+#[test]
+fn regexec_bytes_matches_embedded_nul_and_non_utf8() {
+    let flags = RegcompFlags::new().add(RegcompFlags::EXTENDED);
+    let exec_flags = RegexecFlags::new();
+
+    let nul_regex = regcomp_bytes(b"a\0b", flags).expect("compile embedded NUL pattern");
+    let nul_matches =
+        regexec_bytes(&nul_regex, b"xxa\0byy", 1, exec_flags).expect("match embedded NUL data");
+    assert_eq!(nul_matches[0].as_deref(), Some(b"a\0b".as_slice()));
+
+    let byte_regex = regcomp_bytes(b"\xff", flags).expect("compile non-UTF-8 pattern");
+    let byte_matches =
+        regexec_bytes(&byte_regex, b"x\xffy", 1, exec_flags).expect("match non-UTF-8 data");
+    assert_eq!(byte_matches[0].as_deref(), Some(b"\xff".as_slice()));
 }
 
 #[test]

@@ -5,7 +5,13 @@ use std::borrow::Cow;
 
 use widestring::WideStr;
 
-use crate::{err::{BindingErrorCode, ErrorKind, RegexError, Result}, flags::RegexecFlags, tre, Regex};
+use crate::{
+    Regex,
+    err::{BindingErrorCode, ErrorKind, RegexError, Result},
+    exec::match_offset,
+    flags::RegexecFlags,
+    tre,
+};
 
 pub type RegMatchWideStr<'a> = Vec<Option<Cow<'a, WideStr>>>;
 
@@ -76,7 +82,6 @@ impl Regex {
 
         // SAFETY: compiled_reg is a wrapped type (see safety concerns for Regex). string is read-only.
         // match_vec has enough room for everything. flags also cannot wrap around.
-        #[allow(clippy::cast_possible_wrap)]
         let result = unsafe {
             tre::tre_regwnexec(
                 compiled_reg_obj,
@@ -98,11 +103,8 @@ impl Regex {
                 continue;
             }
 
-            // Wraparound is impossible.
-            #[allow(clippy::cast_sign_loss)]
-            let start_offset = pmatch.rm_so as usize;
-            #[allow(clippy::cast_sign_loss)]
-            let end_offset = pmatch.rm_eo as usize;
+            let start_offset = match_offset(pmatch.rm_so)?;
+            let end_offset = match_offset(pmatch.rm_eo)?;
 
             result.push(Some(Cow::Borrowed(&string[start_offset..end_offset])));
         }

@@ -5,9 +5,10 @@ use std::ffi::c_char;
 use std::mem;
 
 use crate::{
-    err::{regerror, Result},
+    Regex,
+    err::{Result, regerror},
     flags::RegcompFlags,
-    tre, Regex,
+    tre,
 };
 
 impl Regex {
@@ -52,7 +53,26 @@ impl Regex {
     ///
     /// [`RegexError`]: crate::RegexError
     pub fn new(reg: &str, flags: RegcompFlags) -> Result<Self> {
-        Self::new_bytes(reg.as_bytes(), flags)
+        let mut unwrapped_compiled_reg = mem::MaybeUninit::<tre::regex_t>::uninit();
+
+        // SAFETY: unwrapped_compiled_reg is being initialised and reg remains valid for the call.
+        let result = unsafe {
+            tre::tre_regncomp(
+                unwrapped_compiled_reg.as_mut_ptr(),
+                reg.as_ptr().cast::<c_char>(),
+                reg.len(),
+                flags.get(),
+            )
+        };
+
+        // SAFETY: TRE initialises the regex object even when compilation reports an error, so it
+        // is initialised and must be wrapped and freed on both paths.
+        let compiled_reg = Self(Some(unsafe { unwrapped_compiled_reg.assume_init() }));
+        if result != 0 {
+            return Err(regerror(&compiled_reg, result));
+        }
+
+        Ok(compiled_reg)
     }
 
     /// Compiles a regex contained in a `u8` slice and wraps it in a `Regex` object.
@@ -100,9 +120,8 @@ impl Regex {
 
         // SAFETY: unwrapped_compiled_reg is being initalised. reg is immutably passed and is not
         // modified by the caller. Wrapping is also impossible.
-        #[allow(clippy::cast_possible_wrap)]
         let result = unsafe {
-            tre::tre_regncomp(
+            tre::tre_regncompb(
                 unwrapped_compiled_reg.as_mut_ptr(),
                 reg.as_ptr().cast::<c_char>(),
                 reg.len(),
