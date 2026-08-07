@@ -28,8 +28,9 @@ fn main() -> tre_regex::Result<()> {
 Approximate matching
 ====================
 
-Approximate matching allows insertions, deletions, and substitutions with configurable costs and
-limits. It requires the `approx` feature, which is enabled by default.
+Approximate matching allows insertions, deletions, and substitutions with
+configurable costs and limits. It requires the `approx` feature, which is
+enabled by default.
 
 ```rust
 use tre_regex::{Regex, RegApproxParams, RegcompFlags, RegexecFlags};
@@ -83,4 +84,12 @@ Features
 
 - `wchar`: enable wide-character regex support. **Enabled by default.**
 - `approx`: enable approximate matching support. **Enabled by default.**
-- `vendored`: use the vendored copy of TRE with [tre-regex-sys](https://crates.io/crates/tre-regex-sys); otherwise use the system TRE. **Enabled by default.**
+- `vendored`: use the vendored copy of TRE with
+  [tre-regex-sys](https://crates.io/crates/tre-regex-sys); otherwise use the
+  system TRE. **Enabled by default.**
+
+Contributing
+============
+
+Contributions are welcome. Please follow the [Code of Conduct](CODE_OF_CONDUCT.md)
+and guidelines set out by the [Developer Certificate of Origin](DCO).
