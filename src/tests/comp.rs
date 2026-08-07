@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-2-Clause
 // See LICENSE file in the project root for full license text.
 
-use crate::{RegcompFlags, regcomp, regcomp_bytes};
+use crate::{RegcompFlags, RegexError, regcomp, regcomp_bytes, tre};
 
 #[test]
 fn regcomp_flags_works() {
@@ -13,6 +13,18 @@ fn regcomp_flags_works() {
 
     let regcomp_flags = regcomp_flags.remove(RegcompFlags::EXTENDED);
     assert_eq!(regcomp_flags, RegcompFlags::ICASE);
+}
+
+#[test]
+fn regcomp_bytes_reports_compile_errors() {
+    let error = regcomp_bytes(b"[", RegcompFlags::EXTENDED).expect_err("invalid byte regex");
+    assert!(matches!(
+        error,
+        RegexError::Tre {
+            code: tre::reg_errcode_t::REG_EBRACK,
+            ..
+        }
+    ));
 }
 
 #[test]

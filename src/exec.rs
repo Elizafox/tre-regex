@@ -3,7 +3,7 @@
 
 use crate::{
     Regex,
-    err::{BindingErrorCode, ErrorKind, RegexError, Result},
+    err::{RegexError, Result},
     flags::RegexecFlags,
     tre,
 };
@@ -18,12 +18,7 @@ pub type RegMatchBytes<'a> = Vec<Option<&'a [u8]>>;
 /// # Errors
 /// Returns a [`RegexError`] if the offset cannot be represented by [`usize`].
 pub fn match_offset(offset: tre::regoff_t) -> Result<usize> {
-    usize::try_from(offset).map_err(|error| {
-        RegexError::new(
-            ErrorKind::Binding(BindingErrorCode::INVALID_MATCH_OFFSET),
-            &format!("Invalid match offset: {error}"),
-        )
-    })
+    usize::try_from(offset).map_err(|source| RegexError::InvalidMatchOffset { source })
 }
 
 impl Regex {
@@ -34,8 +29,8 @@ impl Regex {
     pub fn is_match(&self, string: &str, flags: RegexecFlags) -> Result<bool> {
         match self.regexec(string, 0, flags) {
             Ok(_) => Ok(true),
-            Err(RegexError {
-                kind: ErrorKind::Tre(tre::reg_errcode_t::REG_NOMATCH),
+            Err(RegexError::Tre {
+                code: tre::reg_errcode_t::REG_NOMATCH,
                 ..
             }) => Ok(false),
             Err(error) => Err(error),
@@ -49,8 +44,8 @@ impl Regex {
     pub fn is_match_bytes(&self, data: &[u8], flags: RegexecFlags) -> Result<bool> {
         match self.regexec_bytes(data, 0, flags) {
             Ok(_) => Ok(true),
-            Err(RegexError {
-                kind: ErrorKind::Tre(tre::reg_errcode_t::REG_NOMATCH),
+            Err(RegexError::Tre {
+                code: tre::reg_errcode_t::REG_NOMATCH,
                 ..
             }) => Ok(false),
             Err(error) => Err(error),
@@ -144,10 +139,7 @@ impl Regex {
         flags: RegexecFlags,
     ) -> Result<RegMatchStr<'a>> {
         let Some(compiled_reg_obj) = self.as_raw() else {
-            return Err(RegexError::new(
-                ErrorKind::Binding(BindingErrorCode::REGEX_VACANT),
-                "Attempted to unwrap a vacant Regex object",
-            ));
+            return Err(RegexError::VacantRegex);
         };
         let data = string.as_bytes();
         let mut match_vec = vec![tre::regmatch_t::default(); nmatches];
@@ -177,12 +169,9 @@ impl Regex {
 
             let start_offset = match_offset(pmatch.rm_so)?;
             let end_offset = match_offset(pmatch.rm_eo)?;
-            let matched = string.get(start_offset..end_offset).ok_or_else(|| {
-                RegexError::new(
-                    ErrorKind::Binding(BindingErrorCode::ENCODING),
-                    "TRE returned match offsets that are not UTF-8 character boundaries",
-                )
-            })?;
+            let matched = string
+                .get(start_offset..end_offset)
+                .ok_or(RegexError::InvalidUtf8Boundary)?;
             result.push(Some(matched));
         }
 
@@ -245,10 +234,7 @@ impl Regex {
         flags: RegexecFlags,
     ) -> Result<RegMatchBytes<'a>> {
         let Some(compiled_reg_obj) = self.as_raw() else {
-            return Err(RegexError::new(
-                ErrorKind::Binding(BindingErrorCode::REGEX_VACANT),
-                "Attempted to unwrap a vacant Regex object",
-            ));
+            return Err(RegexError::VacantRegex);
         };
         let mut match_vec: Vec<tre::regmatch_t> =
             vec![tre::regmatch_t { rm_so: 0, rm_eo: 0 }; nmatches];

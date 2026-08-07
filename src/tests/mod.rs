@@ -6,3 +6,7 @@ mod approx;
 mod comp;
 mod err;
 mod exec;
+mod flags;
+mod regex;
+#[cfg(feature = "wchar")]
+mod wchar;

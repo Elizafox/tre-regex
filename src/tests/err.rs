@@ -1,15 +1,28 @@
 // SPDX-License-Identifier: BSD-2-Clause
 // See LICENSE file in the project root for full license text.
 
-use crate::{ErrorKind, RegcompFlags, regcomp, tre};
+use crate::{RegcompFlags, Regex, RegexError, regcomp, regerror, tre};
 
 #[test]
 fn regerror_works() {
     match regcomp("[a", RegcompFlags::NONE) {
         Ok(_) => panic!("regcomp"),
         Err(e) => {
-            assert_eq!(e.kind, ErrorKind::Tre(tre::reg_errcode_t::REG_EBRACK));
-            assert_eq!(e.error, "Missing ']'");
+            assert!(matches!(
+                e,
+                RegexError::Tre {
+                    code: tre::reg_errcode_t::REG_EBRACK,
+                    ref message,
+                } if message == "Missing ']'"
+            ));
         }
     }
+}
+
+#[test]
+fn binding_error_display_and_vacant_regerror_work() {
+    let vacant = Regex(None);
+    let error = regerror(&vacant, 1);
+    assert!(matches!(error, RegexError::VacantRegex));
+    assert_eq!(error.to_string(), "attempted to use a vacant Regex object");
 }

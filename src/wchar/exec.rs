@@ -5,7 +5,7 @@ use widestring::WideStr;
 
 use crate::{
     Regex,
-    err::{BindingErrorCode, ErrorKind, RegexError, Result},
+    err::{RegexError, Result},
     exec::match_offset,
     flags::RegexecFlags,
     tre,
@@ -70,10 +70,7 @@ impl Regex {
         flags: RegexecFlags,
     ) -> Result<RegMatchWideStr<'a>> {
         let Some(compiled_reg_obj) = self.as_raw() else {
-            return Err(RegexError::new(
-                ErrorKind::Binding(BindingErrorCode::REGEX_VACANT),
-                "Attempted to unwrap a vacant Regex object",
-            ));
+            return Err(RegexError::VacantRegex);
         };
         let mut match_vec: Vec<tre::regmatch_t> =
             vec![tre::regmatch_t { rm_so: 0, rm_eo: 0 }; nmatches];

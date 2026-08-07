@@ -5,7 +5,7 @@ use std::ffi::c_int;
 
 use crate::{
     Regex, RegexecFlags,
-    err::{BindingErrorCode, ErrorKind, RegexError, Result},
+    err::{RegexError, Result},
     exec::match_offset,
     tre,
 };
@@ -118,12 +118,7 @@ impl RegApproxParams {
 
     pub(crate) fn to_raw(self) -> Result<tre::regaparams_t> {
         fn convert(value: i32) -> Result<c_int> {
-            c_int::try_from(value).map_err(|error| {
-                RegexError::new(
-                    ErrorKind::Binding(BindingErrorCode::INVALID_APPROX_PARAM),
-                    &format!("Approximate matching parameter is out of range: {error}"),
-                )
-            })
+            c_int::try_from(value).map_err(|_| RegexError::InvalidApproxParameter)
         }
 
         Ok(tre::regaparams_t {
@@ -287,10 +282,7 @@ impl Regex {
         flags: RegexecFlags,
     ) -> Result<RegApproxMatchStr<'a>> {
         let Some(compiled_reg_obj) = self.as_raw() else {
-            return Err(RegexError::new(
-                ErrorKind::Binding(BindingErrorCode::REGEX_VACANT),
-                "Attempted to unwrap a vacant Regex object",
-            ));
+            return Err(RegexError::VacantRegex);
         };
         let data = string.as_bytes();
         let mut match_vec = vec![tre::regmatch_t::default(); nmatches];
@@ -325,12 +317,9 @@ impl Regex {
 
             let start_offset = match_offset(pmatch.rm_so)?;
             let end_offset = match_offset(pmatch.rm_eo)?;
-            let matched = string.get(start_offset..end_offset).ok_or_else(|| {
-                RegexError::new(
-                    ErrorKind::Binding(BindingErrorCode::ENCODING),
-                    "TRE returned match offsets that are not UTF-8 character boundaries",
-                )
-            })?;
+            let matched = string
+                .get(start_offset..end_offset)
+                .ok_or(RegexError::InvalidUtf8Boundary)?;
             result.push(Some(matched));
         }
 
@@ -410,10 +399,7 @@ impl Regex {
         flags: RegexecFlags,
     ) -> Result<RegApproxMatchBytes<'a>> {
         let Some(compiled_reg_obj) = self.as_raw() else {
-            return Err(RegexError::new(
-                ErrorKind::Binding(BindingErrorCode::REGEX_VACANT),
-                "Attempted to unwrap a vacant Regex object",
-            ));
+            return Err(RegexError::VacantRegex);
         };
         let mut match_vec: Vec<tre::regmatch_t> =
             vec![tre::regmatch_t { rm_so: 0, rm_eo: 0 }; nmatches];

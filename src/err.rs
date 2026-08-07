@@ -2,7 +2,6 @@
 // See LICENSE file in the project root for full license text.
 
 use std::ffi::{CString, c_char, c_int, c_uint};
-use std::fmt;
 use std::ptr::null_mut;
 
 use crate::{Regex, tre};
@@ -11,68 +10,63 @@ use crate::{Regex, tre};
 pub type ErrorInt = c_int;
 pub type Result<T> = std::result::Result<T, RegexError>;
 
-/// Custom error type for errors in the binding itself.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct BindingErrorCode(u32);
+/// Error type returned in results
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum RegexError {
+    /// An error reported by TRE.
+    #[error("{message} (TRE code {code:?})")]
+    Tre {
+        /// TRE error code.
+        code: tre::reg_errcode_t,
+        /// Human-readable message returned by TRE.
+        message: String,
+    },
 
-impl BindingErrorCode {
-    /// Error occured with [`CString`]
-    pub const CSTRING: Self = Self(1);
+    /// An operation required a populated [`Regex`].
+    #[error("attempted to use a vacant Regex object")]
+    VacantRegex,
 
-    /// Error occured with encoding bytes
-    pub const ENCODING: Self = Self(2);
+    /// TRE returned a malformed error buffer.
+    #[error("could not convert TRE's error buffer to a C string")]
+    InvalidErrorBuffer {
+        /// Conversion error.
+        #[source]
+        source: std::ffi::FromVecWithNulError,
+    },
 
-    /// An attempt was made to unwrap a vacant [`Regex`] object
-    pub const REGEX_VACANT: Self = Self(3);
+    /// TRE's error message was not valid UTF-8.
+    #[error("TRE returned an error message that is not valid UTF-8")]
+    InvalidErrorMessage {
+        /// Conversion error.
+        #[source]
+        source: std::ffi::IntoStringError,
+    },
 
-    /// TRE returned a match offset that cannot be represented by [`usize`]
-    pub const INVALID_MATCH_OFFSET: Self = Self(4);
+    /// TRE returned match offsets that are not UTF-8 character boundaries.
+    #[error("TRE returned match offsets that are not UTF-8 character boundaries")]
+    InvalidUtf8Boundary,
+
+    /// TRE returned a match offset that cannot be represented by [`usize`].
+    #[error("TRE returned an invalid match offset")]
+    InvalidMatchOffset {
+        /// Integer conversion error.
+        #[source]
+        source: std::num::TryFromIntError,
+    },
 
     /// An approximate matching parameter cannot be represented by TRE's C integer type.
-    pub const INVALID_APPROX_PARAM: Self = Self(5);
+    #[cfg(feature = "approx")]
+    #[error("approximate matching parameter is out of range")]
+    InvalidApproxParameter,
 }
 
-/// Type of error: `Binding` (see [`BindingErrorCode`]), or `Tre`
-///
-/// See the TRE documentation for more information on valid error codes for `Tre`.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum ErrorKind {
-    /// Binding-specific error
-    Binding(BindingErrorCode),
-
-    /// Error from TRE
-    Tre(tre::reg_errcode_t),
-}
-
-/// Error type returned in results
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RegexError {
-    /// Kind of error
-    pub kind: ErrorKind,
-
-    /// Error string
-    pub error: String,
-}
-
-impl RegexError {
-    #[must_use]
-    #[inline]
-    pub fn new(kind: ErrorKind, error: &str) -> Self {
-        Self {
-            kind,
-            error: error.to_string(),
-        }
-    }
-}
-
-impl std::error::Error for RegexError {}
-
-// Quick and dirty display impl
-impl fmt::Display for RegexError {
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} (code {:?})", self.error, self.kind)
-    }
+fn error_buffer_to_string(errbuf: Vec<u8>) -> Result<String> {
+    let errstr = CString::from_vec_with_nul(errbuf)
+        .map_err(|source| RegexError::InvalidErrorBuffer { source })?;
+    errstr
+        .into_string()
+        .map_err(|source| RegexError::InvalidErrorMessage { source })
 }
 
 impl Regex {
@@ -88,10 +82,7 @@ impl Regex {
     pub fn regerror(&self, result: ErrorInt) -> RegexError {
         // SAFETY: compiled_reg should be valid; see safety concerns for Regex.
         let Some(compiled_reg_obj) = self.as_raw() else {
-            return RegexError::new(
-                ErrorKind::Binding(BindingErrorCode::REGEX_VACANT),
-                "Attempted to unwrap a vacant Regex object",
-            );
+            return RegexError::VacantRegex;
         };
         // SAFETY: compiled_reg_obj is initialised, and a null buffer with size zero asks TRE for
         // the required error-buffer size.
@@ -106,27 +97,16 @@ impl Regex {
                 bufsize,
             );
         }
-        let errstr = CString::from_vec_with_nul(errbuf).map_err(|e| {
-            RegexError::new(
-                ErrorKind::Binding(BindingErrorCode::CSTRING),
-                &format!("Could not convert error buffer to C string: {e}"),
-            )
-        });
-        let Ok(errstr) = errstr else {
-            return errstr.unwrap_err();
-        };
-        let errstr = errstr.to_str().map_err(|e| {
-            RegexError::new(
-                ErrorKind::Binding(BindingErrorCode::ENCODING),
-                &format!("Could not encode error string to UTF-8: {e}"),
-            )
-        });
-        let Ok(errstr) = errstr else {
-            return errstr.unwrap_err();
+        let errstr = match error_buffer_to_string(errbuf) {
+            Ok(errstr) => errstr,
+            Err(error) => return error,
         };
 
         let result = c_uint::from_ne_bytes(result.to_ne_bytes());
-        RegexError::new(ErrorKind::Tre(tre::reg_errcode_t(result)), errstr)
+        RegexError::Tre {
+            code: tre::reg_errcode_t(result),
+            message: errstr,
+        }
     }
 }
 
@@ -160,4 +140,25 @@ impl Regex {
 #[must_use]
 pub fn regerror(compiled_reg: &Regex, result: ErrorInt) -> RegexError {
     compiled_reg.regerror(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::error::Error;
+
+    use super::{RegexError, error_buffer_to_string};
+
+    #[test]
+    fn malformed_error_buffers_are_rejected() {
+        let missing_nul = error_buffer_to_string(b"error".to_vec()).expect_err("missing NUL");
+        assert!(missing_nul.source().is_some());
+        assert!(matches!(missing_nul, RegexError::InvalidErrorBuffer { .. }));
+
+        let invalid_utf8 = error_buffer_to_string(vec![0xff, 0]).expect_err("invalid UTF-8");
+        assert!(invalid_utf8.source().is_some());
+        assert!(matches!(
+            invalid_utf8,
+            RegexError::InvalidErrorMessage { .. }
+        ));
+    }
 }
