@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BSD-2-Clause
-// See LICENSE file in the project root for full license text.
+// SPDX-FileCopyrightText: 2026 Elizabeth Kiara Regina Ashford
 
 use std::ffi::{CString, c_char, c_int, c_uint};
 use std::ptr::null_mut;
@@ -19,6 +19,7 @@ pub enum RegexError {
     Tre {
         /// TRE error code.
         code: tre::reg_errcode_t,
+
         /// Human-readable message returned by TRE.
         message: String,
     },
