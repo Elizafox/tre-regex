@@ -12,7 +12,7 @@ pub type ErrorInt = c_int;
 pub type Result<T> = std::result::Result<T, RegexError>;
 
 /// Custom error type for errors in the binding itself.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BindingErrorCode(u32);
 
 impl BindingErrorCode {
@@ -27,12 +27,15 @@ impl BindingErrorCode {
 
     /// TRE returned a match offset that cannot be represented by [`usize`]
     pub const INVALID_MATCH_OFFSET: Self = Self(4);
+
+    /// An approximate matching parameter cannot be represented by TRE's C integer type.
+    pub const INVALID_APPROX_PARAM: Self = Self(5);
 }
 
 /// Type of error: `Binding` (see [`BindingErrorCode`]), or `Tre`
 ///
 /// See the TRE documentation for more information on valid error codes for `Tre`.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ErrorKind {
     /// Binding-specific error
     Binding(BindingErrorCode),
@@ -42,7 +45,7 @@ pub enum ErrorKind {
 }
 
 /// Error type returned in results
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RegexError {
     /// Kind of error
     pub kind: ErrorKind,
@@ -84,7 +87,7 @@ impl Regex {
     #[must_use]
     pub fn regerror(&self, result: ErrorInt) -> RegexError {
         // SAFETY: compiled_reg should be valid; see safety concerns for Regex.
-        let Some(compiled_reg_obj) = self.get() else {
+        let Some(compiled_reg_obj) = self.as_raw() else {
             return RegexError::new(
                 ErrorKind::Binding(BindingErrorCode::REGEX_VACANT),
                 "Attempted to unwrap a vacant Regex object",

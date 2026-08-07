@@ -7,11 +7,11 @@
 //! as possible. Most of the TRE API is suported, except [`reguexec`] from TRE; that is tricky to
 //! implement, although should be fairly simple to use yourself.
 //!
-//! This library uses Rust [`std::borrow::Cow`] strings to enable zero-copy of regex matches.
+//! Match results borrow directly from the searched input, avoiding allocations.
 //!
 //! # Examples
-//! Two API's are presented: the function API, and the object API. Whichever one you choose to use
-//! is up to you, although the function API is implemented as a thin wrapper around the object API.
+//! The method API is recommended for new code. Free functions are also provided as lightweight
+//! conveniences and for users migrating from TRE's C API.
 //!
 //! ## Object API
 //! ```
@@ -27,12 +27,7 @@
 //!
 //! for (i, matched) in matches.into_iter().enumerate() {
 //!     match matched {
-//!         Some(res) => {
-//!             match res {
-//!                 Ok(substr) => println!("Match {i}: '{}'", substr),
-//!                 Err(e) => println!("Match {i}: <Error: {e}>"),
-//!             }
-//!         },
+//!         Some(substr) => println!("Match {i}: '{substr}'"),
 //!         None => println!("Match {i}: <None>"),
 //!     }
 //! }
@@ -54,12 +49,7 @@
 //!
 //! for (i, matched) in matches.into_iter().enumerate() {
 //!     match matched {
-//!         Some(res) => {
-//!             match res {
-//!                 Ok(substr) => println!("Match {i}: '{}'", substr),
-//!                 Err(e) => println!("Match {i}: <Error: {e}>"),
-//!             }
-//!         },
+//!         Some(substr) => println!("Match {i}: '{substr}'"),
 //!         None => println!("Match {i}: <None>"),
 //!     }
 //! }
@@ -156,7 +146,7 @@ impl Regex {
         Self(Some(regex))
     }
 
-    /// Relinquish the underlying [`regex_t`](tre_regex_sys::regex_t) object.
+    /// Relinquishes ownership of the underlying [`regex_t`](tre_regex_sys::regex_t).
     ///
     /// This is an advanced function and should not be used unless you know what you are doing.
     ///
@@ -164,29 +154,30 @@ impl Regex {
     /// `None` if the object is vacant, otherwise
     /// <code>Some([regex_t](tre_regex_sys::regex_t))</code>.
     ///
+    /// The caller becomes responsible for eventually passing the value to
+    /// [`tre_regfree`](tre_regex_sys::tre_regfree). Failing to do so leaks its allocation.
+    #[must_use]
+    #[inline]
+    pub fn into_raw(mut self) -> Option<tre::regex_t> {
+        self.0.take()
+    }
+
+    /// Borrows the underlying [`regex_t`](tre_regex_sys::regex_t), if present.
+    #[must_use]
+    #[inline]
+    pub const fn as_raw(&self) -> Option<&tre::regex_t> {
+        self.0.as_ref()
+    }
+
+    /// Mutably borrows the underlying [`regex_t`](tre_regex_sys::regex_t), if present.
+    ///
     /// # Safety
-    /// A leak could result if the object is not properly freed with
-    /// [`tre_regfree`](tre_regex_sys::tre_regfree) if the object was initalised by the TRE API.
+    ///
+    /// The value must remain initialized and valid for [`tre_regfree`](tre::tre_regfree).
     #[must_use]
     #[inline]
-    pub const unsafe fn release(&mut self) -> Option<tre::regex_t> {
-        let regex = self.0;
-        self.0 = None;
-        regex
-    }
-
-    /// Gets an immutable reference to the underlying [`regex_t`](tre_regex_sys::regex_t) object.
-    #[must_use]
-    #[inline]
-    pub const fn get(&self) -> &Option<tre::regex_t> {
-        &self.0
-    }
-
-    /// Gets a mutable reference to the underlying [`regex_t`](tre_regex_sys::regex_t) object.
-    #[must_use]
-    #[inline]
-    pub const fn get_mut(&mut self) -> &mut Option<tre::regex_t> {
-        &mut self.0
+    pub const unsafe fn as_raw_mut(&mut self) -> Option<&mut tre::regex_t> {
+        self.0.as_mut()
     }
 }
 
@@ -197,7 +188,7 @@ impl Drop for Regex {
     /// [`regex_t`](tre_regex_sys::regex_t).
     #[inline]
     fn drop(&mut self) {
-        let Some(compiled_reg) = self.get_mut() else {
+        let Some(compiled_reg) = self.0.as_mut() else {
             return;
         };
 

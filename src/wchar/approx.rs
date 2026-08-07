@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: BSD-2-Clause
 // See LICENSE file in the project root for full license text.
 
-use std::borrow::Cow;
-
 use widestring::WideStr;
 
 use crate::{
@@ -12,7 +10,7 @@ use crate::{
     tre,
 };
 
-pub type RegApproxMatchWideStr<'a> = RegApproxMatch<&'a WideStr, Cow<'a, WideStr>>;
+pub type RegApproxMatchWideStr<'a> = RegApproxMatch<'a, WideStr>;
 
 impl Regex {
     /// Performs an approximate regex search on the passed wide string, returning `nmatches`
@@ -87,7 +85,7 @@ impl Regex {
         nmatches: usize,
         flags: RegexecFlags,
     ) -> Result<RegApproxMatchWideStr<'a>> {
-        let Some(compiled_reg_obj) = self.get() else {
+        let Some(compiled_reg_obj) = self.as_raw() else {
             return Err(RegexError::new(
                 ErrorKind::Binding(BindingErrorCode::REGEX_VACANT),
                 "Attempted to unwrap a vacant Regex object",
@@ -109,15 +107,15 @@ impl Regex {
                 string.as_ptr().cast(),
                 string.len(),
                 &raw mut amatch,
-                *params.get(),
-                flags.get(),
+                params.to_raw()?,
+                flags.bits(),
             )
         };
         if result != 0 {
             return Err(self.regerror(result));
         }
 
-        let mut result: Vec<Option<Cow<'a, WideStr>>> = Vec::with_capacity(nmatches);
+        let mut result = Vec::with_capacity(nmatches);
         for pmatch in match_vec {
             if pmatch.rm_so < 0 || pmatch.rm_eo < 0 {
                 result.push(None);
@@ -127,7 +125,7 @@ impl Regex {
             let start_offset = match_offset(pmatch.rm_so)?;
             let end_offset = match_offset(pmatch.rm_eo)?;
 
-            result.push(Some(Cow::Borrowed(&string[start_offset..end_offset])));
+            result.push(Some(&string[start_offset..end_offset]));
         }
 
         Ok(RegApproxMatchWideStr::new(string, result, amatch))

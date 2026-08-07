@@ -6,16 +6,13 @@ use crate::{RegcompFlags, regcomp, regcomp_bytes};
 #[test]
 fn regcomp_flags_works() {
     let regcomp_flags = RegcompFlags::new().add(RegcompFlags::EXTENDED);
-    assert_eq!(regcomp_flags.get(), RegcompFlags::EXTENDED);
+    assert_eq!(regcomp_flags, RegcompFlags::EXTENDED);
 
     let regcomp_flags = regcomp_flags.add(RegcompFlags::ICASE);
-    assert_eq!(
-        regcomp_flags.get(),
-        RegcompFlags::EXTENDED | RegcompFlags::ICASE
-    );
+    assert_eq!(regcomp_flags, RegcompFlags::EXTENDED | RegcompFlags::ICASE);
 
     let regcomp_flags = regcomp_flags.remove(RegcompFlags::EXTENDED);
-    assert_eq!(regcomp_flags.get(), RegcompFlags::ICASE);
+    assert_eq!(regcomp_flags, RegcompFlags::ICASE);
 }
 
 #[test]

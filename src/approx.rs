@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BSD-2-Clause
 // See LICENSE file in the project root for full license text.
 
-use std::borrow::Cow;
 use std::ffi::c_int;
 
 use crate::{
@@ -11,116 +10,136 @@ use crate::{
     tre,
 };
 
-pub type RegApproxMatchStr<'a> = RegApproxMatch<&'a str, Result<Cow<'a, str>>>;
-pub type RegApproxMatchBytes<'a> = RegApproxMatch<&'a [u8], Cow<'a, [u8]>>;
+pub type RegApproxMatchStr<'a> = RegApproxMatch<'a, str>;
+pub type RegApproxMatchBytes<'a> = RegApproxMatch<'a, [u8]>;
 
 /// Regex params passed to approximate matching functions such as [`regaexec`]
 #[cfg(feature = "approx")]
-#[derive(Copy, Clone, Debug)]
-pub struct RegApproxParams(tre::regaparams_t);
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct RegApproxParams {
+    cost_ins: i32,
+    cost_del: i32,
+    cost_subst: i32,
+    max_cost: i32,
+    max_ins: i32,
+    max_del: i32,
+    max_subst: i32,
+    max_err: i32,
+}
 
 impl RegApproxParams {
     /// Creates a new empty [`RegApproxParams`] object.
     #[must_use]
     #[inline]
-    pub fn new() -> Self {
-        Self(tre::regaparams_t::default())
+    pub const fn new() -> Self {
+        Self {
+            cost_ins: 0,
+            cost_del: 0,
+            cost_subst: 0,
+            max_cost: 0,
+            max_ins: 0,
+            max_del: 0,
+            max_subst: 0,
+            max_err: 0,
+        }
     }
 
     /// Sets the [`cost_ins`](tre_regex_sys::regaparams_t::cost_ins) element.
     #[must_use]
     #[inline]
-    pub const fn cost_ins(&self, cost_ins: c_int) -> Self {
-        let mut copy = *self;
-        copy.0.cost_ins = cost_ins;
+    pub const fn cost_ins(self, cost_ins: i32) -> Self {
+        let mut copy = self;
+        copy.cost_ins = cost_ins;
         copy
     }
 
     /// Sets the [`cost_del`](tre_regex_sys::regaparams_t::cost_del) element.
     #[must_use]
     #[inline]
-    pub const fn cost_del(&self, cost_del: c_int) -> Self {
-        let mut copy = *self;
-        copy.0.cost_del = cost_del;
+    pub const fn cost_del(self, cost_del: i32) -> Self {
+        let mut copy = self;
+        copy.cost_del = cost_del;
         copy
     }
 
     /// Sets the [`cost_subst`](tre_regex_sys::regaparams_t::cost_subst) element.
     #[must_use]
     #[inline]
-    pub const fn cost_subst(&self, cost_subst: c_int) -> Self {
-        let mut copy = *self;
-        copy.0.cost_subst = cost_subst;
+    pub const fn cost_subst(self, cost_subst: i32) -> Self {
+        let mut copy = self;
+        copy.cost_subst = cost_subst;
         copy
     }
 
     /// Sets the [`max_cost`](tre_regex_sys::regaparams_t::max_cost) element.
     #[must_use]
     #[inline]
-    pub const fn max_cost(&self, max_cost: c_int) -> Self {
-        let mut copy = *self;
-        copy.0.max_cost = max_cost;
+    pub const fn max_cost(self, max_cost: i32) -> Self {
+        let mut copy = self;
+        copy.max_cost = max_cost;
         copy
     }
 
     /// Sets the [`max_ins`](tre_regex_sys::regaparams_t::max_ins) element.
     #[must_use]
     #[inline]
-    pub const fn max_ins(&self, max_ins: c_int) -> Self {
-        let mut copy = *self;
-        copy.0.max_ins = max_ins;
+    pub const fn max_ins(self, max_ins: i32) -> Self {
+        let mut copy = self;
+        copy.max_ins = max_ins;
         copy
     }
 
     /// Sets the [`max_del`](tre_regex_sys::regaparams_t::max_del) element.
     #[must_use]
     #[inline]
-    pub const fn max_del(&self, max_del: c_int) -> Self {
-        let mut copy = *self;
-        copy.0.max_del = max_del;
+    pub const fn max_del(self, max_del: i32) -> Self {
+        let mut copy = self;
+        copy.max_del = max_del;
         copy
     }
 
     /// Sets the [`max_subst`](tre_regex_sys::regaparams_t::max_subst) element.
     #[must_use]
     #[inline]
-    pub const fn max_subst(&self, max_subst: c_int) -> Self {
-        let mut copy = *self;
-        copy.0.max_subst = max_subst;
+    pub const fn max_subst(self, max_subst: i32) -> Self {
+        let mut copy = self;
+        copy.max_subst = max_subst;
         copy
     }
 
     /// Sets the [`max_err`](tre_regex_sys::regaparams_t::max_err) element.
     #[must_use]
     #[inline]
-    pub const fn max_err(&self, max_err: c_int) -> Self {
-        let mut copy = *self;
-        copy.0.max_err = max_err;
+    pub const fn max_err(self, max_err: i32) -> Self {
+        let mut copy = self;
+        copy.max_err = max_err;
         copy
     }
 
-    /// Get an immutable reference to the underlying [`regaparams_t`](tre_regex_sys::regaparams_t) object.
-    #[must_use]
-    #[inline]
-    pub const fn get(&self) -> &tre::regaparams_t {
-        &self.0
-    }
+    pub(crate) fn to_raw(self) -> Result<tre::regaparams_t> {
+        fn convert(value: i32) -> Result<c_int> {
+            c_int::try_from(value).map_err(|error| {
+                RegexError::new(
+                    ErrorKind::Binding(BindingErrorCode::INVALID_APPROX_PARAM),
+                    &format!("Approximate matching parameter is out of range: {error}"),
+                )
+            })
+        }
 
-    /// Get a mutable reference to the underlying [`regaparams_t`](tre_regex_sys::regaparams_t) object.
-    #[must_use]
-    #[inline]
-    pub const fn get_mut(&mut self) -> &mut tre::regaparams_t {
-        &mut self.0
+        Ok(tre::regaparams_t {
+            cost_ins: convert(self.cost_ins)?,
+            cost_del: convert(self.cost_del)?,
+            cost_subst: convert(self.cost_subst)?,
+            max_cost: convert(self.max_cost)?,
+            max_ins: convert(self.max_ins)?,
+            max_del: convert(self.max_del)?,
+            max_subst: convert(self.max_subst)?,
+            max_err: convert(self.max_err)?,
+        })
     }
 }
 
-impl Default for RegApproxParams {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-/// This struct is returned by [`regaexec`] and friends.
+/// This struct is returned by [`regaexec`].
 ///
 /// The match results from this function are very complex. See the [TRE documentation] for details
 /// on how this all works and corresponding fields, and what they mean.
@@ -128,59 +147,72 @@ impl Default for RegApproxParams {
 /// This structure should never be instantiated outside the library.
 ///
 /// [TRE documentation]: <https://laurikari.net/tre/documentation/regaexec/>
-#[derive(Clone, Debug)]
-pub struct RegApproxMatch<Data, Res> {
-    data: Data,
-    matches: Vec<Option<Res>>,
-    amatch: tre::regamatch_t,
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RegApproxMatch<'a, T: ?Sized> {
+    data: &'a T,
+    matches: Vec<Option<&'a T>>,
+    cost: i32,
+    num_ins: i32,
+    num_del: i32,
+    num_subst: i32,
 }
 
-impl<Data, Res> RegApproxMatch<Data, Res> {
+impl<'a, T: ?Sized> RegApproxMatch<'a, T> {
     pub(crate) const fn new(
-        data: Data,
-        matches: Vec<Option<Res>>,
+        data: &'a T,
+        matches: Vec<Option<&'a T>>,
         amatch: tre::regamatch_t,
     ) -> Self {
         Self {
             data,
             matches,
-            amatch,
+            cost: amatch.cost,
+            num_ins: amatch.num_ins,
+            num_del: amatch.num_del,
+            num_subst: amatch.num_subst,
         }
     }
 
     /// Gets the cost of the match
-    pub const fn cost(&self) -> c_int {
-        self.amatch.cost
+    #[must_use]
+    pub const fn cost(&self) -> i32 {
+        self.cost
     }
 
     /// Gets the number of insertions if the match
-    pub const fn num_ins(&self) -> c_int {
-        self.amatch.num_ins
+    #[must_use]
+    pub const fn num_ins(&self) -> i32 {
+        self.num_ins
     }
 
     /// Gets the number of deletions if the match
-    pub const fn num_del(&self) -> c_int {
-        self.amatch.num_del
+    #[must_use]
+    pub const fn num_del(&self) -> i32 {
+        self.num_del
     }
 
     /// Get the number of substitutions in the match
-    pub const fn num_subst(&self) -> c_int {
-        self.amatch.num_subst
+    #[must_use]
+    pub const fn num_subst(&self) -> i32 {
+        self.num_subst
     }
 
     /// Gets an immutable reference to the underlying data
-    pub const fn get_orig_data(&self) -> &Data {
-        &self.data
+    #[must_use]
+    pub const fn get_orig_data(&self) -> &'a T {
+        self.data
     }
 
     /// Gets the matches returned by this, as references to the data
-    pub const fn get_matches(&self) -> &Vec<Option<Res>> {
+    #[must_use]
+    pub fn get_matches(&self) -> &[Option<&'a T>] {
         &self.matches
     }
 
-    /// Gets a reference to the underlying [`regamatch_t`](tre_regex_sys::regamatch_t) object.
-    pub const fn get_regamatch(&self) -> &tre::regamatch_t {
-        &self.amatch
+    /// Consumes this result and returns its matches.
+    #[must_use]
+    pub fn into_matches(self) -> Vec<Option<&'a T>> {
+        self.matches
     }
 }
 
@@ -198,13 +230,12 @@ impl Regex {
     /// # Returns
     /// If no error was found, a [`Vec`] of [`Option`]s will be returned.
     ///
-    /// If a given match index is empty, The `Option` will be `None`. Otherwise, [`Result`]s will be
-    /// returned, containing either errors or substrings of the matches. Errors may be returned due to
-    /// decoding problems, such as split codepoints.
+    /// If a given match index is empty, its `Option` is `None`; otherwise it contains a borrowed
+    /// substring of the input.
     ///
     /// # Errors
-    /// If an error is encountered during matching, it returns a [`RegexError`]. Match results may also
-    /// return errors, if decoding into UTF-8 was unsuccessful for whatever reason.
+    /// Returns a [`RegexError`] if matching fails or TRE returns offsets that do not fall on UTF-8
+    /// character boundaries.
     ///
     /// # Caveats
     /// Unless copied, the match results must live at least as long as `string`. This is because they are
@@ -240,7 +271,7 @@ impl Regex {
     ///
     /// for (i, matched) in result.get_matches().into_iter().enumerate() {
     ///     match matched {
-    ///         Some(substr) => println!("Match {i}: {}", substr.as_ref().unwrap()),
+    ///         Some(substr) => println!("Match {i}: {substr}"),
     ///         None => println!("Match {i}: <None>"),
     ///     }
     /// }
@@ -255,7 +286,7 @@ impl Regex {
         nmatches: usize,
         flags: RegexecFlags,
     ) -> Result<RegApproxMatchStr<'a>> {
-        let Some(compiled_reg_obj) = self.get() else {
+        let Some(compiled_reg_obj) = self.as_raw() else {
             return Err(RegexError::new(
                 ErrorKind::Binding(BindingErrorCode::REGEX_VACANT),
                 "Attempted to unwrap a vacant Regex object",
@@ -277,15 +308,15 @@ impl Regex {
                 data.as_ptr().cast(),
                 data.len(),
                 &raw mut amatch,
-                *params.get(),
-                flags.get(),
+                params.to_raw()?,
+                flags.bits(),
             )
         };
         if result_code != 0 {
             return Err(self.regerror(result_code));
         }
 
-        let mut result: Vec<Option<Result<Cow<'a, str>>>> = Vec::with_capacity(nmatches);
+        let mut result = Vec::with_capacity(nmatches);
         for pmatch in match_vec {
             if pmatch.rm_so < 0 || pmatch.rm_eo < 0 {
                 result.push(None);
@@ -294,15 +325,13 @@ impl Regex {
 
             let start_offset = match_offset(pmatch.rm_so)?;
             let end_offset = match_offset(pmatch.rm_eo)?;
-            let pmatch = &data[start_offset..end_offset];
-
-            result.push(Some(match std::str::from_utf8(pmatch) {
-                Ok(s) => Ok(s.into()),
-                Err(e) => Err(RegexError::new(
+            let matched = string.get(start_offset..end_offset).ok_or_else(|| {
+                RegexError::new(
                     ErrorKind::Binding(BindingErrorCode::ENCODING),
-                    &format!("UTF-8 encoding error: {e}"),
-                )),
-            }));
+                    "TRE returned match offsets that are not UTF-8 character boundaries",
+                )
+            })?;
+            result.push(Some(matched));
         }
 
         Ok(RegApproxMatchStr::new(string, result, amatch))
@@ -380,7 +409,7 @@ impl Regex {
         nmatches: usize,
         flags: RegexecFlags,
     ) -> Result<RegApproxMatchBytes<'a>> {
-        let Some(compiled_reg_obj) = self.get() else {
+        let Some(compiled_reg_obj) = self.as_raw() else {
             return Err(RegexError::new(
                 ErrorKind::Binding(BindingErrorCode::REGEX_VACANT),
                 "Attempted to unwrap a vacant Regex object",
@@ -404,15 +433,15 @@ impl Regex {
                 compiled_reg_obj,
                 nul_terminated_data.as_ptr().cast(),
                 &raw mut amatch,
-                *params.get(),
-                flags.get(),
+                params.to_raw()?,
+                flags.bits(),
             )
         };
         if result != 0 {
             return Err(self.regerror(result));
         }
 
-        let mut result: Vec<Option<Cow<'a, [u8]>>> = Vec::with_capacity(nmatches);
+        let mut result = Vec::with_capacity(nmatches);
         for pmatch in match_vec {
             if pmatch.rm_so < 0 || pmatch.rm_eo < 0 {
                 result.push(None);
@@ -422,7 +451,7 @@ impl Regex {
             let start_offset = match_offset(pmatch.rm_so)?;
             let end_offset = match_offset(pmatch.rm_eo)?;
 
-            result.push(Some(Cow::Borrowed(&data[start_offset..end_offset])));
+            result.push(Some(&data[start_offset..end_offset]));
         }
 
         Ok(RegApproxMatchBytes::new(data, result, amatch))
@@ -445,13 +474,12 @@ impl Regex {
 /// # Returns
 /// If no error was found, a [`Vec`] of [`Option`]s will be returned.
 ///
-/// If a given match index is empty, The `Option` will be `None`. Otherwise, [`Result`]s will be
-/// returned, containing either errors or substrings of the matches. Errors may be returned due to
-/// decoding problems, such as split codepoints.
+/// If a given match index is empty, its `Option` is `None`; otherwise it contains a borrowed
+/// substring of the input.
 ///
 /// # Errors
-/// If an error is encountered during matching, it returns a [`RegexError`]. Match results may also
-/// return errors, if decoding into UTF-8 was unsuccessful for whatever reason.
+/// Returns a [`RegexError`] if matching fails or TRE returns offsets that do not fall on UTF-8
+/// character boundaries.
 ///
 /// # Caveats
 /// Unless copied, the match results must live at least as long as `string`. This is because they are
@@ -488,7 +516,7 @@ impl Regex {
 ///
 /// for (i, matched) in result.get_matches().into_iter().enumerate() {
 ///     match matched {
-///         Some(substr) => println!("Match {i}: {}", substr.as_ref().unwrap()),
+///         Some(substr) => println!("Match {i}: {substr}"),
 ///         None => println!("Match {i}: <None>"),
 ///     }
 /// }

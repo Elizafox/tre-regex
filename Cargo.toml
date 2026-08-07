@@ -1,6 +1,6 @@
 [package]
 name = "tre-regex"
-version = "0.5.5"
+version = "0.6.0"
 edition = "2024"
 description = "Rust safe bindings to the TRE regex module"
 readme = "README.md"

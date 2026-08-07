@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: BSD-2-Clause
 // See LICENSE file in the project root for full license text.
 
-use std::borrow::Cow;
-
 use crate::{
     Regex,
     err::{BindingErrorCode, ErrorKind, RegexError, Result},
@@ -10,8 +8,10 @@ use crate::{
     tre,
 };
 
-pub type RegMatchStr<'a> = Vec<Option<Result<Cow<'a, str>>>>;
-pub type RegMatchBytes<'a> = Vec<Option<Cow<'a, [u8]>>>;
+/// Captures returned from a UTF-8 match.
+pub type RegMatchStr<'a> = Vec<Option<&'a str>>;
+/// Captures returned from a byte match.
+pub type RegMatchBytes<'a> = Vec<Option<&'a [u8]>>;
 
 /// Converts a nonnegative TRE match offset into a Rust slice offset.
 ///
@@ -27,6 +27,66 @@ pub fn match_offset(offset: tre::regoff_t) -> Result<usize> {
 }
 
 impl Regex {
+    /// Returns whether `string` matches this regular expression.
+    ///
+    /// # Errors
+    /// Returns a [`RegexError`] for execution errors other than a normal non-match.
+    pub fn is_match(&self, string: &str, flags: RegexecFlags) -> Result<bool> {
+        match self.regexec(string, 0, flags) {
+            Ok(_) => Ok(true),
+            Err(RegexError {
+                kind: ErrorKind::Tre(tre::reg_errcode_t::REG_NOMATCH),
+                ..
+            }) => Ok(false),
+            Err(error) => Err(error),
+        }
+    }
+
+    /// Returns whether `data` matches this byte regular expression.
+    ///
+    /// # Errors
+    /// Returns a [`RegexError`] for execution errors other than a normal non-match.
+    pub fn is_match_bytes(&self, data: &[u8], flags: RegexecFlags) -> Result<bool> {
+        match self.regexec_bytes(data, 0, flags) {
+            Ok(_) => Ok(true),
+            Err(RegexError {
+                kind: ErrorKind::Tre(tre::reg_errcode_t::REG_NOMATCH),
+                ..
+            }) => Ok(false),
+            Err(error) => Err(error),
+        }
+    }
+
+    /// Returns capture groups from `string`.
+    ///
+    /// This is the idiomatically named equivalent of [`regexec`](Self::regexec).
+    ///
+    /// # Errors
+    /// Returns a [`RegexError`] if matching fails or a capture is not valid UTF-8.
+    pub fn captures<'a>(
+        &self,
+        string: &'a str,
+        capacity: usize,
+        flags: RegexecFlags,
+    ) -> Result<RegMatchStr<'a>> {
+        self.regexec(string, capacity, flags)
+    }
+
+    /// Returns capture groups from `data`.
+    ///
+    /// This is the idiomatically named equivalent of [`regexec_bytes`](Self::regexec_bytes).
+    ///
+    /// # Errors
+    /// Returns a [`RegexError`] if matching fails.
+    pub fn captures_bytes<'a>(
+        &self,
+        data: &'a [u8],
+        capacity: usize,
+        flags: RegexecFlags,
+    ) -> Result<RegMatchBytes<'a>> {
+        self.regexec_bytes(data, capacity, flags)
+    }
+
     /// Performs a regex search on the passed string, returning `nmatches` results.
     ///
     /// Non-matching subexpressions or patterns will return `None` in the results.
@@ -39,13 +99,12 @@ impl Regex {
     /// # Returns
     /// If no error was found, a [`Vec`] of [`Option`]s will be returned.
     ///
-    /// If a given match index is empty, The `Option` will be `None`. Otherwise, [`Result`]s will be
-    /// returned, containing either errors or substrings of the matches. Errors may be returned due to
-    /// decoding problems, such as split codepoints.
+    /// If a given match index is empty, its `Option` is `None`; otherwise it contains a borrowed
+    /// substring of the input.
     ///
     /// # Errors
-    /// If an error is encountered during matching, it returns a [`RegexError`]. Match results may also
-    /// return errors, if decoding into UTF-8 was unsuccessful for whatever reason.
+    /// Returns a [`RegexError`] if matching fails or TRE returns offsets that do not fall on UTF-8
+    /// character boundaries.
     ///
     /// # Caveats
     /// Unless copied, the match results must live at least as long as `string`. This is because they are
@@ -68,12 +127,7 @@ impl Regex {
     ///
     /// for (i, matched) in matches.into_iter().enumerate() {
     ///     match matched {
-    ///         Some(res) => {
-    ///             match res {
-    ///                 Ok(substr) => println!("Match {i}: '{}'", substr),
-    ///                 Err(e) => println!("Match {i}: <Error: {e}>"),
-    ///             }
-    ///         },
+    ///         Some(substr) => println!("Match {i}: '{substr}'"),
     ///         None => println!("Match {i}: <None>"),
     ///     }
     /// }
@@ -89,7 +143,7 @@ impl Regex {
         nmatches: usize,
         flags: RegexecFlags,
     ) -> Result<RegMatchStr<'a>> {
-        let Some(compiled_reg_obj) = self.get() else {
+        let Some(compiled_reg_obj) = self.as_raw() else {
             return Err(RegexError::new(
                 ErrorKind::Binding(BindingErrorCode::REGEX_VACANT),
                 "Attempted to unwrap a vacant Regex object",
@@ -107,14 +161,14 @@ impl Regex {
                 data.len(),
                 nmatches,
                 match_vec.as_mut_ptr(),
-                flags.get(),
+                flags.bits(),
             )
         };
         if result != 0 {
             return Err(self.regerror(result));
         }
 
-        let mut result: Vec<Option<Result<Cow<'a, str>>>> = Vec::with_capacity(nmatches);
+        let mut result = Vec::with_capacity(nmatches);
         for pmatch in match_vec {
             if pmatch.rm_so < 0 || pmatch.rm_eo < 0 {
                 result.push(None);
@@ -123,15 +177,13 @@ impl Regex {
 
             let start_offset = match_offset(pmatch.rm_so)?;
             let end_offset = match_offset(pmatch.rm_eo)?;
-            let pmatch = &data[start_offset..end_offset];
-
-            result.push(Some(match std::str::from_utf8(pmatch) {
-                Ok(s) => Ok(s.into()),
-                Err(e) => Err(RegexError::new(
+            let matched = string.get(start_offset..end_offset).ok_or_else(|| {
+                RegexError::new(
                     ErrorKind::Binding(BindingErrorCode::ENCODING),
-                    &format!("UTF-8 encoding error: {e}"),
-                )),
-            }));
+                    "TRE returned match offsets that are not UTF-8 character boundaries",
+                )
+            })?;
+            result.push(Some(matched));
         }
 
         Ok(result)
@@ -192,7 +244,7 @@ impl Regex {
         nmatches: usize,
         flags: RegexecFlags,
     ) -> Result<RegMatchBytes<'a>> {
-        let Some(compiled_reg_obj) = self.get() else {
+        let Some(compiled_reg_obj) = self.as_raw() else {
             return Err(RegexError::new(
                 ErrorKind::Binding(BindingErrorCode::REGEX_VACANT),
                 "Attempted to unwrap a vacant Regex object",
@@ -210,14 +262,14 @@ impl Regex {
                 data.len(),
                 nmatches,
                 match_vec.as_mut_ptr(),
-                flags.get(),
+                flags.bits(),
             )
         };
         if result != 0 {
             return Err(self.regerror(result));
         }
 
-        let mut result: Vec<Option<Cow<'a, [u8]>>> = Vec::with_capacity(nmatches);
+        let mut result = Vec::with_capacity(nmatches);
         for pmatch in match_vec {
             if pmatch.rm_so < 0 || pmatch.rm_eo < 0 {
                 result.push(None);
@@ -227,7 +279,7 @@ impl Regex {
             let start_offset = match_offset(pmatch.rm_so)?;
             let end_offset = match_offset(pmatch.rm_eo)?;
 
-            result.push(Some(Cow::Borrowed(&data[start_offset..end_offset])));
+            result.push(Some(&data[start_offset..end_offset]));
         }
 
         Ok(result)
@@ -249,13 +301,12 @@ impl Regex {
 /// # Returns
 /// If no error was found, a [`Vec`] of [`Option`]s will be returned.
 ///
-/// If a given match index is empty, The `Option` will be `None`. Otherwise, [`Result`]s will be
-/// returned, containing either errors or substrings of the matches. Errors may be returned due to
-/// decoding problems, such as split codepoints.
+/// If a given match index is empty, its `Option` is `None`; otherwise it contains a borrowed
+/// substring of the input.
 ///
 /// # Errors
-/// If an error is encountered during matching, it returns a [`RegexError`]. Match results may also
-/// return errors, if decoding into UTF-8 was unsuccessful for whatever reason.
+/// Returns a [`RegexError`] if matching fails or TRE returns offsets that do not fall on UTF-8
+/// character boundaries.
 ///
 /// # Caveats
 /// Unless copied, the match results must live at least as long as `string`. This is because they are
@@ -283,12 +334,7 @@ impl Regex {
 ///
 /// for (i, matched) in matches.into_iter().enumerate() {
 ///     match matched {
-///         Some(substr) => {
-///             match substr {
-///                 Ok(substr) => println!("Match {i}: '{}'", substr),
-///                 Err(e) => println!("Match {i}: <Error: {e}>"),
-///             }
-///         },
+///         Some(substr) => println!("Match {i}: '{substr}'"),
 ///         None => println!("Match {i}: <None>"),
 ///     }
 /// }

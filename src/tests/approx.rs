@@ -33,18 +33,15 @@ fn test_regaexec() {
 
     let matched_0 = matched[0].as_ref();
     assert!(matched_0.is_some());
-    assert!(matched_0.unwrap().is_ok());
-    assert_eq!(*(matched_0.unwrap().as_ref().unwrap()), "hullo warld");
+    assert_eq!(matched_0.copied(), Some("hullo warld"));
 
     let matched_1 = matched[1].as_ref();
     assert!(matched_1.is_some());
-    assert!(matched_1.unwrap().is_ok());
-    assert_eq!(*(matched_1.unwrap().as_ref().unwrap()), "hullo");
+    assert_eq!(matched_1.copied(), Some("hullo"));
 
     let matched_2 = matched[2].as_ref();
     assert!(matched_2.is_some());
-    assert!(matched_2.unwrap().is_ok());
-    assert_eq!(*(matched_2.unwrap().as_ref().unwrap()), "warld");
+    assert_eq!(matched_2.copied(), Some("warld"));
 }
 
 #[test]
@@ -77,15 +74,15 @@ fn test_regaexec_bytes() {
 
     let matched_0 = matched[0].as_ref();
     assert!(matched_0.is_some());
-    assert_eq!(matched_0.unwrap().as_ref(), b"hullo warld");
+    assert_eq!(*matched_0.unwrap(), b"hullo warld");
 
     let matched_1 = matched[1].as_ref();
     assert!(matched_1.is_some());
-    assert_eq!(matched_1.unwrap().as_ref(), b"hullo");
+    assert_eq!(*matched_1.unwrap(), b"hullo");
 
     let matched_2 = matched[2].as_ref();
     assert!(matched_2.is_some());
-    assert_eq!(matched_2.unwrap().as_ref(), b"warld");
+    assert_eq!(*matched_2.unwrap(), b"warld");
 }
 
 #[test]
@@ -106,5 +103,5 @@ fn regaexec_bytes_matches_non_utf8() {
         .expect("approximately match non-UTF-8 data");
 
     assert_eq!(result.cost(), 1);
-    assert_eq!(result.get_matches()[0].as_deref(), Some(b"\xfe".as_slice()));
+    assert_eq!(result.get_matches()[0], Some(b"\xfe".as_slice()));
 }

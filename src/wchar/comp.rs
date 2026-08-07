@@ -59,7 +59,7 @@ impl Regex {
                 unwrapped_compiled_reg.as_mut_ptr(),
                 reg.as_ptr().cast(),
                 reg.len(),
-                flags.get(),
+                flags.bits(),
             )
         };
 

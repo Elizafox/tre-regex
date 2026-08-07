@@ -38,12 +38,7 @@ impl Regex {
     ///
     /// for (i, matched) in matches.into_iter().enumerate() {
     ///     match matched {
-    ///         Some(res) => {
-    ///             match res {
-    ///                 Ok(substr) => println!("Match {i}: '{}'", substr),
-    ///                 Err(e) => println!("Match {i}: <Error: {e}>"),
-    ///             }
-    ///         },
+    ///         Some(substr) => println!("Match {i}: '{substr}'"),
     ///         None => println!("Match {i}: <None>"),
     ///     }
     /// }
@@ -61,7 +56,7 @@ impl Regex {
                 unwrapped_compiled_reg.as_mut_ptr(),
                 reg.as_ptr().cast::<c_char>(),
                 reg.len(),
-                flags.get(),
+                flags.bits(),
             )
         };
 
@@ -101,12 +96,7 @@ impl Regex {
     ///
     /// for (i, matched) in matches.into_iter().enumerate() {
     ///     match matched {
-    ///         Some(res) => {
-    ///             match res {
-    ///                 Ok(substr) => println!("Match {i}: '{}'", substr),
-    ///                 Err(e) => println!("Match {i}: <Error: {e}>"),
-    ///             }
-    ///         },
+    ///         Some(substr) => println!("Match {i}: '{substr}'"),
     ///         None => println!("Match {i}: <None>"),
     ///     }
     /// }
@@ -125,7 +115,7 @@ impl Regex {
                 unwrapped_compiled_reg.as_mut_ptr(),
                 reg.as_ptr().cast::<c_char>(),
                 reg.len(),
-                flags.get(),
+                flags.bits(),
             )
         };
 
@@ -165,12 +155,7 @@ impl Regex {
 /// let matches = regexec(&compiled_reg, "hello", 1, regexec_flags)?;
 /// for (i, matched) in matches.into_iter().enumerate() {
 ///     match matched {
-///         Some(substr) => {
-///             match substr {
-///                 Ok(substr) => println!("Match {i}: '{}'", substr),
-///                 Err(e) => println!("Match {i}: <Error: {e}>"),
-///             }
-///         },
+///         Some(substr) => println!("Match {i}: '{substr}'"),
 ///         None => println!("Match {i}: <None>"),
 ///     }
 /// }
