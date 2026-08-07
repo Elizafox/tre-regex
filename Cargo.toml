@@ -1,6 +1,6 @@
 [package]
 name = "tre-regex"
-version = "0.5.4"
+version = "0.5.5"
 edition = "2024"
 description = "Rust safe bindings to the TRE regex module"
 readme = "README.md"
@@ -12,7 +12,7 @@ categories = ["api-bindings", "text-processing"]
 keywords = ["regex", "tre", "api", "safe-bindings"]
 
 [dependencies]
-tre-regex-sys = "0.5.4"
+tre-regex-sys = "0.5.5"
 widestring = { version = "1.2.1", optional = true }
 
 [features]
