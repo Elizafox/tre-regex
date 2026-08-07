@@ -27,7 +27,7 @@ jobs:
 
     steps:
       - name: Check out sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -41,7 +41,7 @@ jobs:
 
       - name: Install Windows dependencies
         if: runner.os == 'Windows'
-        uses: msys2/setup-msys2@v2
+        uses: msys2/setup-msys2@v2.31.0
         with:
           msystem: MINGW64
           # Automake 1.18 does not handle the action's relocated
