@@ -11,7 +11,8 @@ pub type ErrorInt = c_int;
 pub type Result<T> = std::result::Result<T, RegexError>;
 
 /// Error type returned in results
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug)]
+#[cfg_attr(feature = "thiserror", derive(thiserror::Error))]
 #[non_exhaustive]
 pub enum RegexError {
     /// An error reported by TRE.
