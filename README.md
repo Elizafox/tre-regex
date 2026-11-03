@@ -87,6 +87,8 @@ Features
 - `vendored`: use the vendored copy of TRE with
   [tre-regex-sys](https://crates.io/crates/tre-regex-sys); otherwise use the
   system TRE. **Enabled by default.**
+- `thiserror`: enable [thiserror](https://crates.io/crates/thiserror) support.
+  **Enabled by default.**
 
 Contributing
 ============
